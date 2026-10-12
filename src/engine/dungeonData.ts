@@ -50,9 +50,32 @@ export const INITIAL_PLAYER: Player = {
       healMp: 10,
       description: 'Restores 10 MP for spells.',
     },
+    {
+      id: 'antidote_vial',
+      name: 'Purifying Antidote',
+      type: 'potion',
+      value: 20,
+      curesStatus: ['poisoned', 'weakened', 'burned'],
+      description: 'Cleanses all negative status conditions (Poison, Weakness, Burn).',
+    },
+    {
+      id: 'potion_of_haste',
+      name: 'Potion of Haste',
+      type: 'potion',
+      value: 25,
+      appliesStatus: {
+        type: 'hasted',
+        name: 'Hasted',
+        duration: 4,
+        potency: 3,
+        description: 'Surges with kinetic speed (+3 ATK, heightened critical chance for 4 turns).',
+      },
+      description: 'Imbues the drinker with blinding speed (+3 ATK & high critical rate for 4 turns).',
+    },
   ],
   gold: 10,
   keys: 0,
+  statusEffects: [],
 };
 
 // Floor 1: The Crypt Entrance

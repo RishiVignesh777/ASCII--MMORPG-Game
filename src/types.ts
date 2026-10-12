@@ -31,6 +31,16 @@ export type TileType =
   | 'fountain'
   | 'trap';
 
+export type StatusEffectType = 'poisoned' | 'weakened' | 'hasted' | 'burned' | 'shielded';
+
+export interface StatusEffect {
+  type: StatusEffectType;
+  name: string;
+  duration: number; // turns remaining
+  potency: number; // damage per turn or stat modifier
+  description: string;
+}
+
 export interface Monster {
   id: string;
   name: string;
@@ -43,6 +53,7 @@ export interface Monster {
   defense: number;
   xpReward: number;
   description: string;
+  statusEffects?: StatusEffect[];
 }
 
 export interface Item {
@@ -55,6 +66,8 @@ export interface Item {
   bonusDef?: number;
   healHp?: number;
   healMp?: number;
+  curesStatus?: StatusEffectType[];
+  appliesStatus?: StatusEffect;
 }
 
 export interface Player {
@@ -75,6 +88,7 @@ export interface Player {
   inventory: Item[];
   gold: number;
   keys: number;
+  statusEffects: StatusEffect[];
 }
 
 export interface DungeonMap {
@@ -102,11 +116,16 @@ export interface TurnLog {
     x: number;
     y: number;
     floor: number;
+    statusEffects: StatusEffect[];
   };
   viewportDescription: string;
   actions: string[];
   combatLog?: string[];
   lootNotification?: string;
+  targetMonsterEffects?: {
+    name: string;
+    statusEffects: StatusEffect[];
+  };
 }
 
 export type CRTColorTheme = 'amber' | 'emerald' | 'cyan' | 'monochrome';

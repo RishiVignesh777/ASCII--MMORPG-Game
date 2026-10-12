@@ -255,6 +255,80 @@ class SoundSystem {
       });
     } catch {}
   }
+
+  // Poison tick sound: gurgling squelch
+  public poison() {
+    if (this.muted) return;
+    this.initCtx();
+    if (!this.ctx) return;
+
+    try {
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(110, this.ctx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(65, this.ctx.currentTime + 0.12);
+
+      gain.gain.setValueAtTime(this.volume * 0.3, this.ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.12);
+
+      osc.connect(gain);
+      gain.connect(this.ctx.destination);
+
+      osc.start();
+      osc.stop(this.ctx.currentTime + 0.12);
+    } catch {}
+  }
+
+  // Buff applied: rising magical tone
+  public buff() {
+    if (this.muted) return;
+    this.initCtx();
+    if (!this.ctx) return;
+
+    try {
+      const t = this.ctx.currentTime;
+      [349, 440, 587, 698].forEach((freq, i) => {
+        const osc = this.ctx!.createOscillator();
+        const gain = this.ctx!.createGain();
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(freq, t + i * 0.05);
+        gain.gain.setValueAtTime(this.volume * 0.3, t + i * 0.05);
+        gain.gain.exponentialRampToValueAtTime(0.01, t + i * 0.05 + 0.15);
+
+        osc.connect(gain);
+        gain.connect(this.ctx!.destination);
+
+        osc.start(t + i * 0.05);
+        osc.stop(t + i * 0.05 + 0.15);
+      });
+    } catch {}
+  }
+
+  // Debuff applied: ominous descending tone
+  public debuff() {
+    if (this.muted) return;
+    this.initCtx();
+    if (!this.ctx) return;
+
+    try {
+      const t = this.ctx.currentTime;
+      [392, 330, 261, 196].forEach((freq, i) => {
+        const osc = this.ctx!.createOscillator();
+        const gain = this.ctx!.createGain();
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(freq, t + i * 0.06);
+        gain.gain.setValueAtTime(this.volume * 0.35, t + i * 0.06);
+        gain.gain.exponentialRampToValueAtTime(0.01, t + i * 0.06 + 0.18);
+
+        osc.connect(gain);
+        gain.connect(this.ctx!.destination);
+
+        osc.start(t + i * 0.06);
+        osc.stop(t + i * 0.06 + 0.18);
+      });
+    } catch {}
+  }
 }
 
 export const sounds = new SoundSystem();

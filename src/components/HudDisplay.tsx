@@ -1,6 +1,21 @@
 import React from 'react';
-import { Compass, Heart, Zap, Sword, Shield, MapPin, Eye, Sparkles } from 'lucide-react';
-import { TurnLog } from '../types';
+import {
+  Compass,
+  Heart,
+  Zap,
+  Sword,
+  Shield,
+  MapPin,
+  Eye,
+  Sparkles,
+  Skull,
+  ShieldOff,
+  Flame,
+  ShieldCheck,
+  Activity,
+  AlertTriangle,
+} from 'lucide-react';
+import { StatusEffect, TurnLog } from '../types';
 
 interface HudDisplayProps {
   currentTurn: TurnLog;
@@ -17,11 +32,47 @@ export const HudDisplay: React.FC<HudDisplayProps> = ({
   level,
   gold,
 }) => {
-  const { hudInfo, heading, viewportDescription } = currentTurn;
+  const { hudInfo, heading, viewportDescription, targetMonsterEffects } = currentTurn;
 
   const hpPercent = Math.max(0, Math.min(100, (hudInfo.hp / hudInfo.maxHp) * 100));
   const mpPercent = Math.max(0, Math.min(100, (hudInfo.mp / hudInfo.maxMp) * 100));
   const xpPercent = Math.max(0, Math.min(100, (xp / nextXp) * 100));
+
+  const statusEffects = hudInfo.statusEffects || [];
+
+  const getStatusIcon = (type: StatusEffect['type']) => {
+    switch (type) {
+      case 'poisoned':
+        return <Skull className="w-3.5 h-3.5 text-emerald-400 animate-pulse" />;
+      case 'weakened':
+        return <ShieldOff className="w-3.5 h-3.5 text-purple-400" />;
+      case 'hasted':
+        return <Zap className="w-3.5 h-3.5 text-amber-400 animate-bounce" />;
+      case 'burned':
+        return <Flame className="w-3.5 h-3.5 text-orange-400 animate-pulse" />;
+      case 'shielded':
+        return <ShieldCheck className="w-3.5 h-3.5 text-sky-400" />;
+      default:
+        return <Activity className="w-3.5 h-3.5 text-zinc-400" />;
+    }
+  };
+
+  const getStatusStyle = (type: StatusEffect['type']) => {
+    switch (type) {
+      case 'poisoned':
+        return 'bg-emerald-950/70 border-emerald-600/60 text-emerald-300 shadow-[0_0_10px_rgba(16,185,129,0.2)]';
+      case 'weakened':
+        return 'bg-purple-950/70 border-purple-600/60 text-purple-300 shadow-[0_0_10px_rgba(168,85,247,0.2)]';
+      case 'hasted':
+        return 'bg-amber-950/70 border-amber-500/70 text-amber-200 shadow-[0_0_12px_rgba(245,158,11,0.25)]';
+      case 'burned':
+        return 'bg-orange-950/70 border-orange-600/60 text-orange-200 shadow-[0_0_10px_rgba(249,115,22,0.2)]';
+      case 'shielded':
+        return 'bg-sky-950/70 border-sky-600/60 text-sky-200 shadow-[0_0_10px_rgba(14,165,233,0.2)]';
+      default:
+        return 'bg-zinc-800 border-zinc-700 text-zinc-300';
+    }
+  };
 
   return (
     <div className="flex flex-col gap-3 font-mono">
@@ -115,6 +166,62 @@ export const HudDisplay: React.FC<HudDisplayProps> = ({
               />
             </div>
           </div>
+        </div>
+
+        {/* ACTIVE STATUS EFFECTS ROW */}
+        <div className="mt-3 pt-3 border-t border-zinc-800/60 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
+          {/* Player Active Statuses */}
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-[11px] text-zinc-500 uppercase tracking-wider flex items-center gap-1 font-semibold">
+              <Activity className="w-3 h-3 text-amber-400" /> Condition:
+            </span>
+
+            {statusEffects.length === 0 ? (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-zinc-950/60 border border-zinc-800 text-[11px] text-zinc-400">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block" />
+                Normal
+              </span>
+            ) : (
+              <div className="flex flex-wrap gap-1.5">
+                {statusEffects.map((effect, idx) => (
+                  <div
+                    key={`${effect.type}-${idx}`}
+                    className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md border text-[11px] font-semibold transition ${getStatusStyle(
+                      effect.type
+                    )}`}
+                    title={`${effect.name}: ${effect.description}`}
+                  >
+                    {getStatusIcon(effect.type)}
+                    <span>{effect.name}</span>
+                    <span className="px-1 py-0.2 rounded bg-black/40 text-[10px] font-mono">
+                      {effect.duration}t
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Target Hostile Status Effects (if hostile in front) */}
+          {targetMonsterEffects && targetMonsterEffects.statusEffects.length > 0 && (
+            <div className="flex flex-wrap items-center gap-1.5 bg-red-950/40 border border-red-900/50 px-2.5 py-1 rounded-lg">
+              <span className="text-[10px] text-red-400 font-semibold uppercase flex items-center gap-1">
+                <AlertTriangle className="w-3 h-3 text-red-400" /> {targetMonsterEffects.name}:
+              </span>
+              {targetMonsterEffects.statusEffects.map((eff, i) => (
+                <span
+                  key={i}
+                  className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] border ${getStatusStyle(
+                    eff.type
+                  )}`}
+                  title={`${eff.name}: ${eff.description}`}
+                >
+                  {getStatusIcon(eff.type)}
+                  <span>{eff.name} ({eff.duration}t)</span>
+                </span>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Equipment Badges */}

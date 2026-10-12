@@ -54,7 +54,7 @@ export default function App() {
     setGameState((prev: GameState) => handlePlayerAction(prev, actionIndex));
   };
 
-  const handleCastSpell = (spellType: 'firebolt' | 'heal') => {
+  const handleCastSpell = (spellType: 'firebolt' | 'heal' | 'haste' | 'weaken') => {
     setGameState((prev: GameState) => castSpell(prev, spellType));
   };
 
@@ -98,6 +98,10 @@ export default function App() {
       handleCastSpell('firebolt');
     } else if (cmd.includes('heal') || cmd === 'h') {
       handleCastSpell('heal');
+    } else if (cmd.includes('haste') || cmd === 'z') {
+      handleCastSpell('haste');
+    } else if (cmd.includes('weaken') || cmd.includes('curse') || cmd === 'x') {
+      handleCastSpell('weaken');
     } else if (cmd.includes('potion') || cmd.includes('drink potion')) {
       const pot = gameState.player.inventory.find((item) => item.type === 'potion');
       if (pot) handleUseItem(pot.id);

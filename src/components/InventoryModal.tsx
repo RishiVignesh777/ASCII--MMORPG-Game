@@ -224,6 +224,32 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({
                   </li>
                 </ul>
               </div>
+
+              <div className="p-3 rounded-lg bg-zinc-950/70 border border-zinc-800 space-y-2">
+                <h4 className="font-bold text-amber-300">Combat Status Effects System</h4>
+                <ul className="space-y-1.5 text-zinc-400 text-[11px]">
+                  <li className="flex items-start gap-1.5">
+                    <span className="text-emerald-400 font-bold">☠ Poisoned:</span>
+                    <span>Inflicted by Goblins. Takes 2 damage at the end of each turn. Cured by Antidote or Fountains.</span>
+                  </li>
+                  <li className="flex items-start gap-1.5">
+                    <span className="text-purple-400 font-bold">⚔ Weakened:</span>
+                    <span>Inflicted by Skeletons & Necromancers. Reduces physical attack power (-2 ATK).</span>
+                  </li>
+                  <li className="flex items-start gap-1.5">
+                    <span className="text-amber-300 font-bold">⚡ Hasted:</span>
+                    <span>Granted by Haste Surge or Potion of Haste. Adds +3 ATK and increases critical strike chance to 45%.</span>
+                  </li>
+                  <li className="flex items-start gap-1.5">
+                    <span className="text-orange-400 font-bold">🔥 Burned:</span>
+                    <span>Inflicted on monsters via Firebolt. Clinging fire deals 3 damage per turn.</span>
+                  </li>
+                  <li className="flex items-start gap-1.5">
+                    <span className="text-sky-300 font-bold">🛡️ Shielded:</span>
+                    <span>Grants +3 Defense against hostile counter-attacks.</span>
+                  </li>
+                </ul>
+              </div>
             </div>
           )}
         </div>

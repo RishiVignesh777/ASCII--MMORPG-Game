@@ -10,6 +10,8 @@ import {
   Crosshair,
   Volume2,
   VolumeX,
+  Zap,
+  ShieldOff,
 } from 'lucide-react';
 import { TurnLog } from '../types';
 import { sounds } from '../engine/sound';
@@ -17,7 +19,7 @@ import { sounds } from '../engine/sound';
 interface ActionControlsProps {
   currentTurn: TurnLog;
   onAction: (index: number) => void;
-  onCastSpell: (type: 'firebolt' | 'heal') => void;
+  onCastSpell: (type: 'firebolt' | 'heal' | 'haste' | 'weaken') => void;
   onOpenInventory: () => void;
   isMuted: boolean;
   onToggleMute: () => void;
@@ -68,6 +70,12 @@ export const ActionControls: React.FC<ActionControlsProps> = ({
       } else if (key === 'h' || key === 'r') {
         e.preventDefault();
         onCastSpell('heal');
+      } else if (key === 'z') {
+        e.preventDefault();
+        onCastSpell('haste');
+      } else if (key === 'x') {
+        e.preventDefault();
+        onCastSpell('weaken');
       } else if (key === 'i' || key === 'b') {
         e.preventDefault();
         onOpenInventory();
@@ -170,8 +178,8 @@ export const ActionControls: React.FC<ActionControlsProps> = ({
             <button
               onClick={() => onCastSpell('firebolt')}
               disabled={isGameOver || currentTurn.hudInfo.mp < 5}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-orange-950/50 border border-orange-700/50 hover:border-orange-500 text-orange-200 text-xs font-medium transition cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
-              title="Hurls a flaming orb at visible enemies (5 MP)"
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-orange-950/50 border border-orange-700/50 hover:border-orange-500 text-orange-200 text-xs font-medium transition cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+              title="Hurls a flaming orb that deals 12-16 DMG & Burns enemy for 3 turns (5 MP)"
             >
               <Flame className="w-3.5 h-3.5 text-orange-400" />
               <span>Firebolt (5 MP)</span>
@@ -181,17 +189,39 @@ export const ActionControls: React.FC<ActionControlsProps> = ({
             <button
               onClick={() => onCastSpell('heal')}
               disabled={isGameOver || currentTurn.hudInfo.mp < 4}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-950/50 border border-emerald-700/50 hover:border-emerald-500 text-emerald-200 text-xs font-medium transition cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-emerald-950/50 border border-emerald-700/50 hover:border-emerald-500 text-emerald-200 text-xs font-medium transition cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
               title="Restores 14 HP through divine light (4 MP)"
             >
               <HeartPulse className="w-3.5 h-3.5 text-emerald-400" />
               <span>Heal (4 MP)</span>
               <kbd className="text-[10px] text-emerald-400/80 bg-emerald-900/50 px-1 rounded">H</kbd>
             </button>
+
+            <button
+              onClick={() => onCastSpell('haste')}
+              disabled={isGameOver || currentTurn.hudInfo.mp < 4}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-amber-950/50 border border-amber-700/50 hover:border-amber-500 text-amber-200 text-xs font-medium transition cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+              title="Grants Hasted status: +3 ATK & +35% Crit for 4 turns (4 MP)"
+            >
+              <Zap className="w-3.5 h-3.5 text-amber-400" />
+              <span>Haste (4 MP)</span>
+              <kbd className="text-[10px] text-amber-400/80 bg-amber-900/50 px-1 rounded">Z</kbd>
+            </button>
+
+            <button
+              onClick={() => onCastSpell('weaken')}
+              disabled={isGameOver || currentTurn.hudInfo.mp < 3}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-purple-950/50 border border-purple-700/50 hover:border-purple-500 text-purple-200 text-xs font-medium transition cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+              title="Curses enemy with Weakened status: -2 ATK for 4 turns (3 MP)"
+            >
+              <ShieldOff className="w-3.5 h-3.5 text-purple-400" />
+              <span>Weaken (3 MP)</span>
+              <kbd className="text-[10px] text-purple-400/80 bg-purple-900/50 px-1 rounded">X</kbd>
+            </button>
           </div>
 
           <div className="text-[11px] text-zinc-500 italic">
-            Controls: [1-5], WASD, Arrows, Space, Q/H
+            Controls: [1-5], WASD, Arrows, Space, Q/H/Z/X
           </div>
         </div>
       </div>
