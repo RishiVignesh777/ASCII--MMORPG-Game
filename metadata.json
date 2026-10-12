@@ -1,0 +1,7 @@
+{
+  "name": "3D ASCII Dungeon Engine",
+  "description": "Immersive first-person retro 3D ASCII dungeon crawler with perspective raycasting, real-time depth shading, mini-map, turn-based combat, and classic dungeon exploration.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
+
