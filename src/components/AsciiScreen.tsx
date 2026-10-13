@@ -120,10 +120,11 @@ export const AsciiScreen: React.FC<AsciiScreenProps> = ({
 
   const currentThemeStyle = themeClasses[theme];
 
-  // Side-by-side combined text lines
+  // Side-by-side combined text lines (12 rows for 30x12 widescreen)
   const combinedLines: string[] = [];
-  for (let i = 0; i < 8; i++) {
-    const vp = currentTurn.viewportAscii[i] || '+----------------+';
+  const maxRows = Math.max(currentTurn.viewportAscii.length, currentTurn.miniMapAscii.length, 12);
+  for (let i = 0; i < maxRows; i++) {
+    const vp = currentTurn.viewportAscii[i] || '+------------------------------+';
     const mm = currentTurn.miniMapAscii[i] || '';
     combinedLines.push(`${vp}  ${mm}`);
   }
@@ -134,7 +135,7 @@ export const AsciiScreen: React.FC<AsciiScreenProps> = ({
       <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-2 bg-zinc-950/80 border-b border-zinc-800 text-xs text-zinc-400">
         <div className="flex items-center gap-2">
           <Terminal className="w-3.5 h-3.5 text-amber-400" />
-          <span className="font-semibold text-zinc-200">1. 3D FIRST-PERSON VIEWPORT & MINI-MAP</span>
+          <span className="font-semibold text-zinc-200">1. WIDESCREEN 3D VIEWPORT & EXPANDED MINI-MAP</span>
           <span className="px-1.5 py-0.5 rounded bg-zinc-800/80 text-[10px] text-zinc-400">
             TURN {currentTurn.turn}
           </span>

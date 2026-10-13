@@ -13,7 +13,7 @@ export interface ViewportResult {
   viewportLines: string[];
   miniMapLines: string[];
   combinedBlock: string;
-  depthGrid: number[][]; // 8 rows of depth levels (0: border/UI, 1: close, 2: mid, 3: far, 4: horizon/dark)
+  depthGrid: number[][]; // 12 rows of depth levels
   description: string;
   facingName: string;
   monsterInFront: Monster | null;
@@ -48,7 +48,7 @@ export function renderFirstPersonView(player: Player, map: DungeonMap, floorNumb
     return map.chests.find((c) => c.x === x && c.y === y);
   };
 
-  // Inspect tiles at Distance 1, 2, 3
+  // Inspect tiles at Distances 1, 2, 3, 4
   const d1X = px + dx;
   const d1Y = py + dy;
   const d1Tile = getTile(d1X, d1Y);
@@ -71,205 +71,264 @@ export function renderFirstPersonView(player: Player, map: DungeonMap, floorNumb
   const d1LeftTile = getTile(d1X + leftDx, d1Y + leftDy);
   const d1RightTile = getTile(d1X + rightDx, d1Y + rightDy);
 
-  // 16 inner cols, 6 inner rows
+  // 30 inner cols, 10 inner rows (plus 2 borders = 12 rows total!)
   const innerRows: string[] = [];
-  // Row depths for each of the 6 inner rows: array of 16 numbers each
   const innerDepths: number[][] = [];
 
-  // Helper to push a row with its depth values
   const addInnerRow = (lineStr: string, depthPattern: number | number[]) => {
     let s = lineStr;
-    if (s.length < 16) s = s.padEnd(16, ' ');
-    if (s.length > 16) s = s.slice(0, 16);
+    if (s.length < 30) s = s.padEnd(30, ' ');
+    if (s.length > 30) s = s.slice(0, 30);
     innerRows.push(s);
 
     if (Array.isArray(depthPattern)) {
       const arr = [...depthPattern];
-      while (arr.length < 16) arr.push(1);
-      innerDepths.push(arr.slice(0, 16));
+      while (arr.length < 30) arr.push(1);
+      innerDepths.push(arr.slice(0, 30));
     } else {
-      innerDepths.push(Array(16).fill(depthPattern));
+      innerDepths.push(Array(30).fill(depthPattern));
     }
   };
 
-  // Determine what is directly in front
   const monsterInFront = d1Monster;
   const objectInFront = d1Tile;
 
-  // RENDERING LOGIC WITH FOV DEPTH-GRADED ASCII SHADING:
-  // CASE 1: CLOSE WALL AT DISTANCE 1 (High contrast dense characters: # or █)
+  // WIDESCREEN (30 cols x 10 inner rows) RAYCAST RENDERING:
+  // CASE 1: CLOSE WALL DIRECTLY AHEAD (Distance 1 - Foreground / Touch: # or █)
   if (d1Tile === 'wall') {
-    for (let r = 0; r < 6; r++) {
-      addInnerRow('################', 1);
+    for (let r = 0; r < 10; r++) {
+      addInnerRow('##############################', 1);
     }
   }
-  // CASE 2: CLOSED DOOR AT DISTANCE 1 (High contrast close door)
+  // CASE 2: CLOSED DOOR AT DISTANCE 1 (Foreground / Touch)
   else if (d1Tile === 'door_closed') {
-    addInnerRow('###+--------+###', 1);
-    addInnerRow('###|  [  ]  |###', 1);
-    addInnerRow('###|  |  |  |###', 1);
-    addInnerRow('###|  |(o)| |###', 1);
-    addInnerRow('###|  |  |  |###', 1);
-    addInnerRow('###+--------+###', 1);
+    addInnerRow('######+------------------+######', 1);
+    addInnerRow('######|      [  ]        |######', 1);
+    addInnerRow('######|      |  |        |######', 1);
+    addInnerRow('######|      |  |        |######', 1);
+    addInnerRow('######|     [ (o) ]      |######', 1);
+    addInnerRow('######|      |  |        |######', 1);
+    addInnerRow('######|      |  |        |######', 1);
+    addInnerRow('######|      |  |        |######', 1);
+    addInnerRow('######|      [  ]        |######', 1);
+    addInnerRow('######+------------------+######', 1);
   }
-  // CASE 3: MONSTER AT DISTANCE 1 (MELEE ENGAGEMENT - Bold uppercase scaled sprite)
+  // CASE 3: MONSTER AT DISTANCE 1 (Foreground Touch Combat - Large multi-character sprite)
   else if (d1Monster) {
     const sym = d1Monster.symbol.toUpperCase();
-    addInnerRow(` \\   [ ${sym} ]    / `, [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]);
-    addInnerRow('  \\  /o  o\\  /  ', 1);
-    addInnerRow('   | \\====/ |   ', 1);
-    addInnerRow('   | /|  |\\ |   ', 1);
-    addInnerRow('  /  | || |  \\  ', 1);
-    addInnerRow(' /   |_||_|   \\ ', 1);
+    addInnerRow(' \\                            / ', 1);
+    addInnerRow(`  \\         [  /${sym}\\  ]        /  `, 1);
+    addInnerRow('   \\       /  o  o  \\       /   ', 1);
+    addInnerRow('    |      \\  ====  /      |    ', 1);
+    addInnerRow('    |     /| |    | |\\     |    ', 1);
+    addInnerRow('    |    / | |    | | \\    |    ', 1);
+    addInnerRow('    |      | |====| |      |    ', 1);
+    addInnerRow('   /        | |  | |        \\   ', 1);
+    addInnerRow('  /         |_|  |_|         \\  ', 1);
+    addInnerRow(' /                            \\ ', 1);
   }
   // CASE 4: CHEST AT DISTANCE 1
   else if (d1Chest && !d1Chest.opened) {
-    addInnerRow(' \\            / ', [1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 1, 1]);
-    addInnerRow('  \\==========/  ', [1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 1, 1, 1]);
-    addInnerRow('   | [====] |   ', 1);
-    addInnerRow('   | |[ o]| |   ', 1);
-    addInnerRow('  /==========\\  ', [1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 1, 1, 1]);
-    addInnerRow(' /            \\ ', [1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 1, 1]);
+    addInnerRow(' \\                            / ', 1);
+    addInnerRow('  \\==========================/  ', 1);
+    addInnerRow('   |                        |   ', 1);
+    addInnerRow('   |       +--------+       |   ', 1);
+    addInnerRow('   |       |[======]|       |   ', 1);
+    addInnerRow('   |       || [ o ]||       |   ', 1);
+    addInnerRow('   |       +--------+       |   ', 1);
+    addInnerRow('   |                        |   ', 1);
+    addInnerRow('  /==========================\\  ', 1);
+    addInnerRow(' /                            \\ ', 1);
   }
   // CASE 5: FOUNTAIN AT DISTANCE 1
   else if (d1Tile === 'fountain') {
-    addInnerRow(' \\            / ', 1);
-    addInnerRow('  \\==========/  ', 1);
-    addInnerRow('   | (~*~)  |   ', 1);
-    addInnerRow('   | (===)  |   ', 1);
-    addInnerRow('  /==========\\  ', 1);
-    addInnerRow(' /            \\ ', 1);
+    addInnerRow(' \\                            / ', 1);
+    addInnerRow('  \\==========================/  ', 1);
+    addInnerRow('   |                        |   ', 1);
+    addInnerRow('   |       ( ~~~~~~ )       |   ', 1);
+    addInnerRow('   |       ( * * *  )       |   ', 1);
+    addInnerRow('   |       (========)       |   ', 1);
+    addInnerRow('   |       |  ||||  |       |   ', 1);
+    addInnerRow('   |                        |   ', 1);
+    addInnerRow('  /==========================\\  ', 1);
+    addInnerRow(' /                            \\ ', 1);
   }
   // CASE 6: STAIRS DOWN AT DISTANCE 1
   else if (d1Tile === 'stairs_down') {
-    addInnerRow(' \\            / ', 1);
-    addInnerRow('  \\==========/  ', 1);
-    addInnerRow('   | [>>>>] |   ', 1);
-    addInnerRow('   |  v  v  |   ', 1);
-    addInnerRow('  /==========\\  ', 1);
-    addInnerRow(' /            \\ ', 1);
+    addInnerRow(' \\                            / ', 1);
+    addInnerRow('  \\==========================/  ', 1);
+    addInnerRow('   |       [>>>>>>>>>]      |   ', 1);
+    addInnerRow('   |       | v  v  v |      |   ', 1);
+    addInnerRow('   |       |  v  v   |      |   ', 1);
+    addInnerRow('   |       |   v     |      |   ', 1);
+    addInnerRow('   |       [>>>>>>>>>]      |   ', 1);
+    addInnerRow('   |                        |   ', 1);
+    addInnerRow('  /==========================\\  ', 1);
+    addInnerRow(' /                            \\ ', 1);
   }
-  // CASE 7: MID WALL AT DISTANCE 2 (Medium contrast characters: = or ▒)
+  // CASE 7: NEAR WALL AT DISTANCE 2 (Near Wall: = or ▒)
   else if (d2Tile === 'wall') {
     const hasLeftOpening = d1LeftTile !== 'wall';
     const hasRightOpening = d1RightTile !== 'wall';
 
     if (hasLeftOpening && !hasRightOpening) {
-      // Corner turning left
-      addInnerRow('      \\=======/ ', [2, 2, 2, 2, 2, 2, 1, 2, 2, 2, 2, 2, 2, 2, 1, 1]);
-      addInnerRow(' <===  \\=====/  ', [2, 2, 2, 2, 2, 2, 1, 2, 2, 2, 2, 2, 1, 1, 1, 1]);
-      addInnerRow('        |===|   ', [2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 1, 1]);
-      addInnerRow('        |===|   ', [2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 1, 1]);
-      addInnerRow(' <===  /=====\\  ', [2, 2, 2, 2, 2, 2, 1, 2, 2, 2, 2, 2, 1, 1, 1, 1]);
-      addInnerRow('      /=======\\ ', [2, 2, 2, 2, 2, 2, 1, 2, 2, 2, 2, 2, 2, 2, 1, 1]);
+      // Wide corner turning left
+      addInnerRow('         \\===================/  ', 2);
+      addInnerRow(' <======  \\=================/   ', 2);
+      addInnerRow('           |===============|    ', 2);
+      addInnerRow('           |===============|    ', 2);
+      addInnerRow('           |===============|    ', 2);
+      addInnerRow('           |===============|    ', 2);
+      addInnerRow('           |===============|    ', 2);
+      addInnerRow('           |===============|    ', 2);
+      addInnerRow(' <======  /=================\\   ', 2);
+      addInnerRow('         /===================\\  ', 2);
     } else if (!hasLeftOpening && hasRightOpening) {
-      // Corner turning right
-      addInnerRow(' \\=======/      ', [1, 1, 2, 2, 2, 2, 2, 2, 2, 1, 2, 2, 2, 2, 2, 2]);
-      addInnerRow('  \\=====/  ===> ', [1, 1, 1, 2, 2, 2, 2, 2, 1, 2, 2, 2, 2, 2, 2, 2]);
-      addInnerRow('   |===|        ', [1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2]);
-      addInnerRow('   |===|        ', [1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2]);
-      addInnerRow('  /=====\\  ===> ', [1, 1, 1, 2, 2, 2, 2, 2, 1, 2, 2, 2, 2, 2, 2, 2]);
-      addInnerRow(' /=======\\      ', [1, 1, 2, 2, 2, 2, 2, 2, 2, 1, 2, 2, 2, 2, 2, 2]);
+      // Wide corner turning right
+      addInnerRow('  \\===================/         ', 2);
+      addInnerRow('   \\=================/  ======> ', 2);
+      addInnerRow('    |===============|           ', 2);
+      addInnerRow('    |===============|           ', 2);
+      addInnerRow('    |===============|           ', 2);
+      addInnerRow('    |===============|           ', 2);
+      addInnerRow('    |===============|           ', 2);
+      addInnerRow('    |===============|           ', 2);
+      addInnerRow('   /=================\\  ======> ', 2);
+      addInnerRow('  /===================\\         ', 2);
     } else if (hasLeftOpening && hasRightOpening) {
-      // T-junction (open left and right, mid wall ahead)
-      addInnerRow(' <==  \\====/ ==> ', 2);
-      addInnerRow('       |==|     ', 2);
-      addInnerRow('       |==|     ', 2);
-      addInnerRow('       |==|     ', 2);
-      addInnerRow('       |==|     ', 2);
-      addInnerRow(' <==  /====\\ ==> ', 2);
+      // Wide T-Junction
+      addInnerRow(' <====  \\==============/  ====> ', 2);
+      addInnerRow('         |============|         ', 2);
+      addInnerRow('         |============|         ', 2);
+      addInnerRow('         |============|         ', 2);
+      addInnerRow('         |============|         ', 2);
+      addInnerRow('         |============|         ', 2);
+      addInnerRow('         |============|         ', 2);
+      addInnerRow('         |============|         ', 2);
+      addInnerRow('         |============|         ', 2);
+      addInnerRow(' <====  /==============\\  ====> ', 2);
     } else {
-      // Dead end corridor at mid distance (Medium contrast = )
-      addInnerRow(' \\============/ ', [1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 1]);
-      addInnerRow('  \\==========/  ', [1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 1, 1, 1]);
-      addInnerRow('   |========|   ', [1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 1, 1, 1]);
-      addInnerRow('   |========|   ', [1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 1, 1, 1]);
-      addInnerRow('  /==========\\  ', [1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 1, 1, 1]);
-      addInnerRow(' /============\\ ', [1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 1]);
+      // Dead end corridor at distance 2
+      addInnerRow(' \\                            / ', [1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 1]);
+      addInnerRow('  \\==========================/  ', 2);
+      addInnerRow('   \\========================/   ', 2);
+      addInnerRow('    |======================|    ', 2);
+      addInnerRow('    |======================|    ', 2);
+      addInnerRow('    |======================|    ', 2);
+      addInnerRow('    |======================|    ', 2);
+      addInnerRow('   /========================\\   ', 2);
+      addInnerRow('  /==========================\\  ', 2);
+      addInnerRow(' /                            \\ ', [1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 1]);
     }
   }
-  // CASE 8: MID OBJECT AT DISTANCE 2 (Monster, Door, Chest - Medium contrast)
+  // CASE 8: OBJECT / MONSTER AT DISTANCE 2
   else if (d2Monster) {
-    // Render scaled down lowercase sprite for mid-distance contrast
     const sym = d2Monster.symbol.toLowerCase();
-    addInnerRow(' \\            / ', [1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 1, 1]);
-    addInnerRow(`  \\   [${sym}]    /  `, [1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 1, 1, 1, 1, 1]);
-    addInnerRow('  |   /| |\\  |  ', [1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 1, 1, 1, 1, 1]);
-    addInnerRow('  |    | |   |  ', [1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 1, 1, 1, 1, 1]);
-    addInnerRow('  /==========\\  ', [1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 1, 1, 1]);
-    addInnerRow(' /            \\ ', [1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 1, 1]);
+    addInnerRow(' \\                            / ', [1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 1]);
+    addInnerRow('  \\==========================/  ', 2);
+    addInnerRow('   \\                        /   ', 2);
+    addInnerRow(`    |       [  /${sym}\\  ]      |    `, 2);
+    addInnerRow('    |       /  ..  \\       |    ', 2);
+    addInnerRow('    |       \\  ==  /       |    ', 2);
+    addInnerRow('    |        | || |        |    ', 2);
+    addInnerRow('   /                        \\   ', 2);
+    addInnerRow('  /==========================\\  ', 2);
+    addInnerRow(' /                            \\ ', [1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 1]);
   } else if (d2Tile === 'door_closed') {
-    addInnerRow(' \\            / ', [1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 1, 1]);
-    addInnerRow('  \\==[ + ]===/  ', [1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 1, 1, 1]);
-    addInnerRow('  |  | | |   |  ', [1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 1, 1, 1]);
-    addInnerRow('  |  |===|   |  ', [1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 1, 1, 1]);
-    addInnerRow('  /==========\\  ', [1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 1, 1, 1]);
-    addInnerRow(' /            \\ ', [1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 1, 1]);
+    addInnerRow(' \\                            / ', 1);
+    addInnerRow('  \\==========================/  ', 2);
+    addInnerRow('   \\      [  [+]  ]         /   ', 2);
+    addInnerRow('    |     |  | |  |        |    ', 2);
+    addInnerRow('    |     |  |(o) |        |    ', 2);
+    addInnerRow('    |     |  | |  |        |    ', 2);
+    addInnerRow('    |     [  [+]  ]        |    ', 2);
+    addInnerRow('   /                        \\   ', 2);
+    addInnerRow('  /==========================\\  ', 2);
+    addInnerRow(' /                            \\ ', 1);
   } else if (d2Chest && !d2Chest.opened) {
-    addInnerRow(' \\            / ', [1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 1, 1]);
-    addInnerRow('  \\===[$]====/  ', [1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 1, 1, 1]);
-    addInnerRow('  |   |o|    |  ', [1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 1, 1, 1]);
-    addInnerRow('  |  =====   |  ', [1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 1, 1, 1]);
-    addInnerRow('  /==========\\  ', [1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 1, 1, 1]);
-    addInnerRow(' /            \\ ', [1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 1, 1]);
+    addInnerRow(' \\                            / ', 1);
+    addInnerRow('  \\==========================/  ', 2);
+    addInnerRow('   \\                        /   ', 2);
+    addInnerRow('    |       [====]         |    ', 2);
+    addInnerRow('    |       |[o ]|         |    ', 2);
+    addInnerRow('    |       ======         |    ', 2);
+    addInnerRow('    |                      |    ', 2);
+    addInnerRow('   /                        \\   ', 2);
+    addInnerRow('  /==========================\\  ', 2);
+    addInnerRow(' /                            \\ ', 1);
   } else if (d2Tile === 'stairs_down') {
-    addInnerRow(' \\            / ', [1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 1, 1]);
-    addInnerRow('  \\==[ > ]===/  ', [1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 1, 1, 1]);
-    addInnerRow('  |   >>>    |  ', [1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 1, 1, 1]);
-    addInnerRow('  |   >>>    |  ', [1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 1, 1, 1]);
-    addInnerRow('  /==========\\  ', [1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 1, 1, 1]);
-    addInnerRow(' /            \\ ', [1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 1, 1]);
+    addInnerRow(' \\                            / ', 1);
+    addInnerRow('  \\==========================/  ', 2);
+    addInnerRow('   \\     [  [>>>]  ]        /   ', 2);
+    addInnerRow('    |       v v v          |    ', 2);
+    addInnerRow('    |        v v           |    ', 2);
+    addInnerRow('    |         v            |    ', 2);
+    addInnerRow('    |     [  [>>>]  ]      |    ', 2);
+    addInnerRow('   /                        \\   ', 2);
+    addInnerRow('  /==========================\\  ', 2);
+    addInnerRow(' /                            \\ ', 1);
   }
-  // CASE 9: DISTANCE 3 (FAR WALL / OBJECT - Low contrast characters: - or ░ or ·)
+  // CASE 9: DISTANCE 3 (Mid-Range Wall: ░ or :)
   else if (d3Tile === 'wall') {
-    addInnerRow(' \\            / ', [1, 1, 2, 2, 3, 3, 3, 3, 3, 3, 2, 2, 1, 1, 1, 1]);
-    addInnerRow('  \\==========/  ', [1, 1, 1, 2, 2, 3, 3, 3, 3, 2, 2, 1, 1, 1, 1, 1]);
-    addInnerRow('  |  - - - - |  ', [1, 1, 2, 3, 3, 3, 3, 3, 3, 3, 2, 1, 1, 1, 1, 1]);
-    addInnerRow('  |  - - - - |  ', [1, 1, 2, 3, 3, 3, 3, 3, 3, 3, 2, 1, 1, 1, 1, 1]);
-    addInnerRow('  /==========\\  ', [1, 1, 1, 2, 2, 3, 3, 3, 3, 2, 2, 1, 1, 1, 1, 1]);
-    addInnerRow(' /            \\ ', [1, 1, 2, 2, 3, 3, 3, 3, 3, 3, 2, 2, 1, 1, 1, 1]);
+    addInnerRow(' \\                            / ', 1);
+    addInnerRow('  \\==========================/  ', 2);
+    addInnerRow('   \\                        /   ', 2);
+    addInnerRow('    |  ░ ░ ░ ░ ░ ░ ░ ░ ░ ░ |    ', 3);
+    addInnerRow('    |  : : : : : : : : : : |    ', 3);
+    addInnerRow('    |  : : : : : : : : : : |    ', 3);
+    addInnerRow('    |  ░ ░ ░ ░ ░ ░ ░ ░ ░ ░ |    ', 3);
+    addInnerRow('   /                        \\   ', 2);
+    addInnerRow('  /==========================\\  ', 2);
+    addInnerRow(' /                            \\ ', 1);
   } else if (d3Monster) {
-    // Distant monster: faint lowercase dot-bounded symbol
     const sym = d3Monster.symbol.toLowerCase();
-    addInnerRow(' \\            / ', [1, 1, 2, 2, 3, 3, 3, 3, 3, 3, 2, 2, 1, 1, 1, 1]);
-    addInnerRow('  \\==========/  ', [1, 1, 1, 2, 2, 3, 3, 3, 3, 2, 2, 1, 1, 1, 1, 1]);
-    addInnerRow(`  |   [·${sym}·]   |  `, [1, 1, 2, 3, 3, 3, 3, 3, 3, 3, 2, 1, 1, 1, 1, 1]);
-    addInnerRow('  |   . .    |  ', [1, 1, 2, 3, 3, 3, 3, 3, 3, 3, 2, 1, 1, 1, 1, 1]);
-    addInnerRow('  /==========\\  ', [1, 1, 1, 2, 2, 3, 3, 3, 3, 2, 2, 1, 1, 1, 1, 1]);
-    addInnerRow(' /            \\ ', [1, 1, 2, 2, 3, 3, 3, 3, 3, 3, 2, 2, 1, 1, 1, 1]);
+    addInnerRow(' \\                            / ', 1);
+    addInnerRow('  \\==========================/  ', 2);
+    addInnerRow('   \\                        /   ', 2);
+    addInnerRow('    |  ░ ░ ░ ░ ░ ░ ░ ░ ░ ░ |    ', 3);
+    addInnerRow(`    |       [  .${sym}.  ]       |    `, 3);
+    addInnerRow('    |         . .          |    ', 3);
+    addInnerRow('    |  ░ ░ ░ ░ ░ ░ ░ ░ ░ ░ |    ', 3);
+    addInnerRow('   /                        \\   ', 2);
+    addInnerRow('  /==========================\\  ', 2);
+    addInnerRow(' /                            \\ ', 1);
   } else if (d3Tile === 'door_closed') {
-    addInnerRow(' \\            / ', [1, 1, 2, 2, 3, 3, 3, 3, 3, 3, 2, 2, 1, 1, 1, 1]);
-    addInnerRow('  \\==========/  ', [1, 1, 1, 2, 2, 3, 3, 3, 3, 2, 2, 1, 1, 1, 1, 1]);
-    addInnerRow('  |   [·]    |  ', [1, 1, 2, 3, 3, 3, 3, 3, 3, 3, 2, 1, 1, 1, 1, 1]);
-    addInnerRow('  |   . .    |  ', [1, 1, 2, 3, 3, 3, 3, 3, 3, 3, 2, 1, 1, 1, 1, 1]);
-    addInnerRow('  /==========\\  ', [1, 1, 1, 2, 2, 3, 3, 3, 3, 2, 2, 1, 1, 1, 1, 1]);
-    addInnerRow(' /            \\ ', [1, 1, 2, 2, 3, 3, 3, 3, 3, 3, 2, 2, 1, 1, 1, 1]);
+    addInnerRow(' \\                            / ', 1);
+    addInnerRow('  \\==========================/  ', 2);
+    addInnerRow('   \\                        /   ', 2);
+    addInnerRow('    |  ░ ░ ░ ░ ░ ░ ░ ░ ░ ░ |    ', 3);
+    addInnerRow('    |        [ [+] ]       |    ', 3);
+    addInnerRow('    |        [     ]       |    ', 3);
+    addInnerRow('    |  ░ ░ ░ ░ ░ ░ ░ ░ ░ ░ |    ', 3);
+    addInnerRow('   /                        \\   ', 2);
+    addInnerRow('  /==========================\\  ', 2);
+    addInnerRow(' /                            \\ ', 1);
   }
-  // CASE 10: OPEN STRAIGHT CORRIDOR (Vanishing point in distance 4 - Faint horizon dots)
+  // CASE 10: OPEN STRAIGHT CORRIDOR (Deep Vanishing Point Centered: [     .     ])
   else {
-    addInnerRow(' \\            / ', [1, 1, 2, 2, 3, 3, 4, 4, 4, 4, 3, 3, 2, 2, 1, 1]);
-    addInnerRow('  \\==========/  ', [1, 1, 1, 2, 2, 3, 3, 4, 4, 3, 3, 2, 2, 1, 1, 1]);
-    addInnerRow('  |  - - - - |  ', [1, 1, 2, 3, 3, 3, 3, 3, 3, 3, 3, 2, 1, 1, 1, 1]);
-    addInnerRow('  |  . [·] . |  ', [1, 1, 2, 3, 3, 4, 4, 4, 4, 3, 3, 2, 1, 1, 1, 1]);
-    addInnerRow('  /==========\\  ', [1, 1, 1, 2, 2, 3, 3, 4, 4, 3, 3, 2, 2, 1, 1, 1]);
-    addInnerRow(' /            \\ ', [1, 1, 2, 2, 3, 3, 4, 4, 4, 4, 3, 3, 2, 2, 1, 1]);
+    addInnerRow(' \\                            / ', 1);
+    addInnerRow('  \\==========================/  ', 2);
+    addInnerRow('   |  ░ ░ ░ ░ ░ ░ ░ ░ ░ ░ |   ', 3);
+    addInnerRow('   |  : : : : : : : : : : |   ', 3);
+    addInnerRow('   |  - - [     .     ] - |   ', 4);
+    addInnerRow('   |  . . [     .     ] . |   ', 4);
+    addInnerRow('   |  : : : : : : : : : : |   ', 3);
+    addInnerRow('   |  ░ ░ ░ ░ ░ ░ ░ ░ ░ ░ |   ', 3);
+    addInnerRow('  /==========================\\  ', 2);
+    addInnerRow(' /                            \\ ', 1);
   }
 
-  // Format the 8 viewport lines
-  const formattedInnerRows = innerRows.slice(0, 6).map((row) => `|${row}|`);
+  // Viewport borders (30 inner columns + 2 side bars = 32 chars wide!)
+  const formattedInnerRows = innerRows.slice(0, 10).map((row) => `| ${row} |`.slice(0, 32));
   const viewportLines: string[] = [
-    '+----------------+',
+    '+------------------------------+',
     ...formattedInnerRows,
-    '+----------------+',
+    '+------------------------------+',
   ];
 
-  // OVERHEAD MINI-MAP WITH REAL-TIME FOV DISTANCE ATTENUATION
-  // In FOV:
-  // - Radius 0 (Player): @^ (Depth 1, high contrast)
-  // - Radius 1: Solid wall '#', clear floor '.', uppercase monster 'M' (Depth 1, high contrast)
-  // - Radius 2: Mid wall '=', small floor '·', lowercase monster 'm' (Depth 2, medium contrast)
-  // - Radius 3: Dim wall '-', dark floor ' ', distant silhouette '?' (Depth 3, low contrast)
-  const mapRadius = 2; // 5x5 grid centered on player
+  // EXPANDED 11x11 TILE RADAR MINI-MAP
+  // Centered on player (radius 5 in X and Y)
+  const mapRadius = 5; // 11x11 grid centered on player (-5 to +5)
   const miniGrid: string[] = [];
   const miniDepths: number[][] = [];
 
@@ -283,15 +342,15 @@ export function renderFirstPersonView(player: Player, map: DungeonMap, floorNumb
       const dist = Math.max(Math.abs(dxOffset), Math.abs(dyOffset));
 
       if (dxOffset === 0 && dyOffset === 0) {
-        // Player position with facing arrow: @^, @>, @v, @<
+        // Player position with direction marker
         rowChars.push(`@${DIRECTION_ARROWS[facing]}`);
         rowDepths.push(1);
       } else if (mx < 0 || mx >= map.width || my < 0 || my >= map.height) {
-        // Outer boundaries dimmed by FOV distance
-        if (dist === 1) {
+        // Outer boundaries
+        if (dist <= 2) {
           rowChars.push('#');
           rowDepths.push(1);
-        } else if (dist === 2) {
+        } else if (dist <= 4) {
           rowChars.push('=');
           rowDepths.push(2);
         } else {
@@ -303,8 +362,8 @@ export function renderFirstPersonView(player: Player, map: DungeonMap, floorNumb
         const chest = getChest(mx, my);
         const t = map.tiles[my][mx];
 
-        if (dist === 1) {
-          // CLOSE FOV: High contrast characters
+        if (dist <= 2) {
+          // Inner Bright Torchlight
           if (monster) rowChars.push(monster.symbol.toUpperCase());
           else if (chest && !chest.opened) rowChars.push('$');
           else if (t === 'wall') rowChars.push('#');
@@ -314,8 +373,8 @@ export function renderFirstPersonView(player: Player, map: DungeonMap, floorNumb
           else if (t === 'fountain') rowChars.push('~');
           else rowChars.push('.');
           rowDepths.push(1);
-        } else if (dist === 2) {
-          // MID FOV: Medium contrast characters
+        } else if (dist <= 4) {
+          // Mid Radar Range
           if (monster) rowChars.push(monster.symbol.toLowerCase());
           else if (chest && !chest.opened) rowChars.push('$');
           else if (t === 'wall') rowChars.push('=');
@@ -326,7 +385,7 @@ export function renderFirstPersonView(player: Player, map: DungeonMap, floorNumb
           else rowChars.push('·');
           rowDepths.push(2);
         } else {
-          // FAR FOV / PERIMETER: Low contrast dimmed characters
+          // Perimeter Distance
           if (monster) rowChars.push('?');
           else if (chest && !chest.opened) rowChars.push('.');
           else if (t === 'wall') rowChars.push('-');
@@ -362,62 +421,62 @@ export function renderFirstPersonView(player: Player, map: DungeonMap, floorNumb
     miniDepths.push(formattedDepths);
   }
 
-  // Mini-map lines to align with 8 viewport rows
+  // Mini-map lines to align with the 12 viewport rows:
+  // Row 0: Header
+  // Rows 1 to 10: Map rows 0 to 9
+  // Row 11: Map row 10 + Facing status
   const miniMapLines: string[] = [
-    ' [MINI-MAP]',
-    ` ${miniGrid[0] || '# # # # #'}`,
-    ` ${miniGrid[1] || '# . . . #'}`.padEnd(14, ' '),
-    ` ${miniGrid[2] || '# . @^. #'}`.padEnd(14, ' '),
-    ` ${miniGrid[3] || '# # + # #'}`.padEnd(14, ' '),
-    ` ${miniGrid[4] || '# # # # #'}`.padEnd(14, ' '),
-    ` Facing: ${DIRECTION_NAMES[facing]}`,
-    ` Pos: (${px}, ${py}) Fl: ${floorNumber}`,
+    ' [11x11 MINI-MAP]',
+    ` ${miniGrid[0]}`,
+    ` ${miniGrid[1]}`,
+    ` ${miniGrid[2]}`,
+    ` ${miniGrid[3]}`,
+    ` ${miniGrid[4]}`,
+    ` ${miniGrid[5]}`,
+    ` ${miniGrid[6]}`,
+    ` ${miniGrid[7]}`,
+    ` ${miniGrid[8]}`,
+    ` ${miniGrid[9]}`,
+    ` ${miniGrid[10]}  Facing: ${DIRECTION_NAMES[facing]}`,
   ];
 
-  // Combine side-by-side & build full character-level depth grid (8 rows)
+  // Combined side-by-side lines (12 lines total!)
   const combinedLines: string[] = [];
   const depthGrid: number[][] = [];
 
-  for (let i = 0; i < 8; i++) {
-    const vp = viewportLines[i] || '+----------------+';
+  for (let i = 0; i < 12; i++) {
+    const vp = viewportLines[i] || '+------------------------------+';
     const mm = miniMapLines[i] || '';
     const lineStr = `${vp}  ${mm}`;
     combinedLines.push(lineStr);
 
     const lineDepths: number[] = [];
-    // Viewport border row 0 and 7
-    if (i === 0 || i === 7) {
-      for (let c = 0; c < 18; c++) lineDepths.push(0);
+    if (i === 0 || i === 11) {
+      for (let c = 0; c < 32; c++) lineDepths.push(0);
     } else {
-      // Inner viewport line: '|' + 16 chars + '|'
       lineDepths.push(0); // '|'
-      const rowD = innerDepths[i - 1] || Array(16).fill(1);
-      for (let c = 0; c < 16; c++) {
+      const rowD = innerDepths[i - 1] || Array(30).fill(1);
+      for (let c = 0; c < 30; c++) {
         lineDepths.push(rowD[c] ?? 1);
       }
       lineDepths.push(0); // '|'
     }
 
-    // 2 separator spaces
-    lineDepths.push(0, 0);
+    lineDepths.push(0, 0); // 2 spaces separator
 
-    // Mini-map part
-    if (i >= 1 && i <= 5) {
-      const mmRowDepths = miniDepths[i - 1] || [];
-      lineDepths.push(0); // leading space
+    if (i >= 1 && i <= 11) {
+      const mmDepths = miniDepths[i - 1] || [];
+      lineDepths.push(0);
       for (let c = 0; c < mm.length - 1; c++) {
-        lineDepths.push(mmRowDepths[c] ?? 2);
+        lineDepths.push(mmDepths[c] ?? 2);
       }
     } else {
-      for (let c = 0; c < mm.length; c++) {
-        lineDepths.push(0);
-      }
+      for (let c = 0; c < mm.length; c++) lineDepths.push(0);
     }
 
     depthGrid.push(lineDepths);
   }
 
-  // Generate atmospheric 2-sentence viewport description
   const description = generateDescription(
     player,
     d1Tile,
@@ -452,48 +511,48 @@ function generateDescription(
   floorNumber: number
 ): string {
   if (d1Monster) {
-    return `A snarling ${d1Monster.name} looms right in front of you, weapon drawn and ready to strike! The smell of copper and stale crypt air fills your lungs as combat begins.`;
+    return `A snarling ${d1Monster.name} fills your entire field of view, poised to strike at arm's length! Cold subterranean drafts whip across your face as adrenaline surges through your veins. The stench of wet stone and beastly fury hangs heavy in the oppressive gloom.`;
   }
 
   if (d1Tile === 'door_closed') {
-    return 'A heavy wooden door bound with blackened iron studs blocks the passage directly ahead. Faint cold drafts and scratching sounds whisper from beyond the ancient timber.';
+    return 'An imposing heavy wooden door reinforced with blackened iron studs blocks the widescreen corridor directly ahead. Faint scratching sounds and a damp chill whisper from beyond the ancient timbers. The expansive stone walls curve away into the torchlit darkness on either side.';
   }
 
   if (d1Tile === 'door_open') {
-    return 'An open doorway reveals the passage beyond, its timber frame marked with chisel notches. Cold stagnant air drafts through the threshold into the corridor.';
+    return 'An arched doorway stands wide open before you, framing the deep corridor beyond. Cool subterranean air flows freely through the threshold, stirring cobwebs draped along the high stone ceiling. Echoes of distant water droplets reverberate along the flagstones.';
   }
 
   if (d1Tile === 'wall') {
-    return 'A solid rough-hewn stone wall stands immediately before you, slick with green dungeon dampness. Your torchlight reflects dimly off the mortar seams, offering no way forward.';
+    return 'A massive barrier of rough-hewn granite spans the entire 30-column foreground directly before you. Moisture glistens along the deep mortar seams in the warm flicker of your torchlight. The broad corridor forces you to turn your heading left or right.';
   }
 
   if (d1Chest && !d1Chest.opened) {
-    return 'A reinforced iron-banded treasure chest sits on the flagstones directly in front of you. Its brass padlock glistens in the flickering torchlight, undisturbed by time.';
+    return 'A heavy iron-banded treasure chest rests solidly upon the stone floor right before your boots. Its brass padlock glistens with ancient polish against the dark flagstones. The surrounding corridor stretches wide and quiet in the subterranean stillness.';
   }
 
   if (d1Tile === 'fountain') {
-    return 'A tranquil stone basin of crystalline holy water ripples gently before you. A soothing hum vibrates through the masonry, radiating restorative magical energy.';
+    return 'A wide stone basin brimming with crystalline holy water ripples serenely in the foreground. A radiant celestial hum vibrates through the masonry, illuminating the surrounding stone arches with soothing azure light. The air tastes crisp and rejuvenating.';
   }
 
   if (d1Tile === 'stairs_down') {
-    return `A spiral flight of stone steps plunges steeply downward into the suffocating darkness of Floor ${floorNumber + 1}. A distant rumbling echo rises from the subterranean depths below.`;
+    return `A broad spiral flight of stone steps plunges steeply downward into the dark abyss of Floor ${floorNumber + 1}. A distant, heavy rumble echoes up from the vast subterranean vaults below. The expansive radar map confirms the depths waiting ahead.`;
   }
 
   if (d2Monster) {
-    return `You spot a ${d2Monster.name} lingering just a few paces ahead in the mid shadows. Echoes of scraping claws and ragged breathing bounce off the stone corridor walls.`;
+    return `You discern the silhouette of a ${d2Monster.name} lurking a few paces ahead in the near corridor shadows. Ragged breathing and scraping claws bounce off the wide stone masonry. The wide-angle field of view highlights open retreat paths along the corridor flanks.`;
   }
 
   if (d2Tile === 'door_closed') {
-    return 'The stone passage extends a short distance before terminating at an imposing timber doorway. Distant water drops rhythmically strike the dungeon floor in the silence.';
+    return 'The wide stone passage extends forward before terminating at an imposing timber gateway. Ambient subterranean drafts whistle through the mortar fissures in the silence. The 11x11 radar indicates branching rooms deeper in the dungeon.';
   }
 
   if (d2Tile === 'wall') {
-    return 'The corridor terminates in a solid stone wall just a few paces ahead, forcing a turn. The damp chill of the subterranean catacombs seeps through your boots.';
+    return 'The wide corridor ends at a solid stone barrier just a few paces ahead, opening into crosswise intersections. Shadows dance across the ceiling rafters as your torch flickers. The damp chill of the catacombs seeps through the subterranean floor.';
   }
 
   if (d3Tile === 'wall') {
-    return 'The dim corridor stretches ahead into the shadows before ending at a far stone barrier. Cobwebs hang motionless from the arched ceiling in the still, stale air.';
+    return 'The expansive stone corridor stretches deep into the gloom before culminating at a distant masonry barrier. Ancient cobwebs hang motionless from the high vaulted ceiling in the still air. Your wide radar reveals extensive dungeon terrain surrounding your position.';
   }
 
-  return 'A long, echoing stone corridor recedes into the oppressive gloom toward a distant vanishing point. Shadows dance along the masonry as your torch flickers in the quiet depths.';
+  return 'A deep, panoramic stone corridor recedes into the oppressive gloom toward a distant vanishing point. Shadows dance along the 30-column masonry as your torchlight flickers in the quiet depths. The 11x11 radar tracks the vast 30x30 floor grid extending all around you.';
 }

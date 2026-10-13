@@ -12,9 +12,9 @@ import {
   VolumeX,
   Zap,
   ShieldOff,
+  MoveHorizontal,
 } from 'lucide-react';
 import { TurnLog } from '../types';
-import { sounds } from '../engine/sound';
 
 interface ActionControlsProps {
   currentTurn: TurnLog;
@@ -40,7 +40,6 @@ export const ActionControls: React.FC<ActionControlsProps> = ({
   // Keyboard shortcut listener
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Don't capture if typing in input
       if (['INPUT', 'TEXTAREA'].includes((e.target as HTMLElement).tagName)) {
         return;
       }
@@ -61,9 +60,12 @@ export const ActionControls: React.FC<ActionControlsProps> = ({
       } else if (key === '4' || key === 's' || key === 'arrowdown') {
         e.preventDefault();
         onAction(4);
-      } else if (key === '5' || key === 'e' || key === ' ') {
+      } else if (key === '5' || key === 'c') {
         e.preventDefault();
         onAction(5);
+      } else if (key === '6' || key === 'e' || key === ' ') {
+        e.preventDefault();
+        onAction(6);
       } else if (key === 'q' || key === 'f') {
         e.preventDefault();
         onCastSpell('firebolt');
@@ -94,10 +96,11 @@ export const ActionControls: React.FC<ActionControlsProps> = ({
     <ArrowLeft className="w-4 h-4 text-sky-400" key="2" />,
     <ArrowRight className="w-4 h-4 text-sky-400" key="3" />,
     <ArrowDown className="w-4 h-4 text-amber-400" key="4" />,
-    <Crosshair className="w-4 h-4 text-rose-400" key="5" />,
+    <MoveHorizontal className="w-4 h-4 text-indigo-400" key="5" />,
+    <Crosshair className="w-4 h-4 text-rose-400" key="6" />,
   ];
 
-  const actionKeys = ['[1] / W', '[2] / A', '[3] / D', '[4] / S', '[5] / E'];
+  const actionKeys = ['[1] / W', '[2] / A', '[3] / D', '[4] / S', '[5] / C', '[6] / E'];
 
   return (
     <div className="flex flex-col gap-3 font-mono">
@@ -130,11 +133,11 @@ export const ActionControls: React.FC<ActionControlsProps> = ({
           </div>
         </div>
 
-        {/* The 5 Numbered Action Buttons Required by Output Structure */}
+        {/* The 6 Numbered Action Buttons */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
           {actions.map((actName, idx) => {
             const actionNumber = idx + 1;
-            const isContextAction = actionNumber === 5;
+            const isContextAction = actionNumber === 6;
 
             return (
               <button
@@ -143,7 +146,7 @@ export const ActionControls: React.FC<ActionControlsProps> = ({
                 disabled={isGameOver}
                 className={`group flex items-center justify-between p-3 rounded-lg border text-left transition-all duration-150 cursor-pointer ${
                   isContextAction
-                    ? 'sm:col-span-2 lg:col-span-2 bg-gradient-to-r from-amber-950/40 to-rose-950/40 border-amber-500/50 hover:border-amber-400 hover:from-amber-900/50 hover:to-rose-900/50 shadow-md'
+                    ? 'sm:col-span-2 lg:col-span-1 bg-gradient-to-r from-amber-950/40 to-rose-950/40 border-amber-500/50 hover:border-amber-400 hover:from-amber-900/50 hover:to-rose-900/50 shadow-md'
                     : 'bg-zinc-950/60 border-zinc-800/80 hover:border-zinc-700 hover:bg-zinc-800/50'
                 }`}
               >
@@ -151,7 +154,7 @@ export const ActionControls: React.FC<ActionControlsProps> = ({
                   <span className="w-6 h-6 rounded flex items-center justify-center bg-zinc-900 border border-zinc-700/60 text-xs font-bold text-amber-300 shrink-0">
                     {actionNumber}
                   </span>
-                  <div className="shrink-0">{actionIcons[idx]}</div>
+                  <div className="shrink-0">{actionIcons[idx] ?? <Crosshair className="w-4 h-4" />}</div>
                   <span
                     className={`text-xs font-medium truncate ${
                       isContextAction
@@ -179,7 +182,7 @@ export const ActionControls: React.FC<ActionControlsProps> = ({
               onClick={() => onCastSpell('firebolt')}
               disabled={isGameOver || currentTurn.hudInfo.mp < 5}
               className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-orange-950/50 border border-orange-700/50 hover:border-orange-500 text-orange-200 text-xs font-medium transition cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
-              title="Hurls a flaming orb that deals 12-16 DMG & Burns enemy for 3 turns (5 MP)"
+              title="Hurls a flaming orb that deals 14-20 DMG & Burns enemy for 3 turns (5 MP)"
             >
               <Flame className="w-3.5 h-3.5 text-orange-400" />
               <span>Firebolt (5 MP)</span>
@@ -190,7 +193,7 @@ export const ActionControls: React.FC<ActionControlsProps> = ({
               onClick={() => onCastSpell('heal')}
               disabled={isGameOver || currentTurn.hudInfo.mp < 4}
               className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-emerald-950/50 border border-emerald-700/50 hover:border-emerald-500 text-emerald-200 text-xs font-medium transition cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
-              title="Restores 14 HP through divine light (4 MP)"
+              title="Restores 16 HP through divine light (4 MP)"
             >
               <HeartPulse className="w-3.5 h-3.5 text-emerald-400" />
               <span>Heal (4 MP)</span>
@@ -201,7 +204,7 @@ export const ActionControls: React.FC<ActionControlsProps> = ({
               onClick={() => onCastSpell('haste')}
               disabled={isGameOver || currentTurn.hudInfo.mp < 4}
               className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-amber-950/50 border border-amber-700/50 hover:border-amber-500 text-amber-200 text-xs font-medium transition cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
-              title="Grants Hasted status: +3 ATK & +35% Crit for 4 turns (4 MP)"
+              title="Grants Hasted status: +3 ATK & +35% Crit for 5 turns (4 MP)"
             >
               <Zap className="w-3.5 h-3.5 text-amber-400" />
               <span>Haste (4 MP)</span>
@@ -221,7 +224,7 @@ export const ActionControls: React.FC<ActionControlsProps> = ({
           </div>
 
           <div className="text-[11px] text-zinc-500 italic">
-            Controls: [1-5], WASD, Arrows, Space, Q/H/Z/X
+            Controls: [1-6], WASD, Arrows, C (Strafe), Space, Q/H/Z/X
           </div>
         </div>
       </div>

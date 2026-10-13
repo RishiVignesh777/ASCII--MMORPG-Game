@@ -14,6 +14,7 @@ import {
   ShieldCheck,
   Activity,
   AlertTriangle,
+  Wind,
 } from 'lucide-react';
 import { StatusEffect, TurnLog } from '../types';
 
@@ -36,6 +37,7 @@ export const HudDisplay: React.FC<HudDisplayProps> = ({
 
   const hpPercent = Math.max(0, Math.min(100, (hudInfo.hp / hudInfo.maxHp) * 100));
   const mpPercent = Math.max(0, Math.min(100, (hudInfo.mp / hudInfo.maxMp) * 100));
+  const staminaPercent = Math.max(0, Math.min(100, (hudInfo.stamina / hudInfo.maxStamina) * 100));
   const xpPercent = Math.max(0, Math.min(100, (xp / nextXp) * 100));
 
   const statusEffects = hudInfo.statusEffects || [];
@@ -93,12 +95,12 @@ export const HudDisplay: React.FC<HudDisplayProps> = ({
           </div>
         </div>
 
-        {/* Stats Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
-          {/* Heading & Compass */}
+        {/* Stats Grid: Orientation, HP, MP, Stamina, Map Position */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-2.5 text-xs">
+          {/* Orientation */}
           <div className="flex flex-col gap-1 p-2.5 rounded-lg bg-zinc-950/60 border border-zinc-800/60">
             <span className="text-zinc-500 text-[11px] flex items-center gap-1">
-              <Compass className="w-3 h-3 text-sky-400" /> Heading
+              <Compass className="w-3 h-3 text-sky-400" /> Orientation
             </span>
             <span className="text-sm font-bold text-sky-300 tracking-wide">
               {heading}
@@ -112,10 +114,10 @@ export const HudDisplay: React.FC<HudDisplayProps> = ({
           <div className="flex flex-col gap-1 p-2.5 rounded-lg bg-zinc-950/60 border border-zinc-800/60">
             <div className="flex justify-between items-center text-[11px]">
               <span className="text-zinc-500 flex items-center gap-1">
-                <Heart className="w-3 h-3 text-red-400" /> Health
+                <Heart className="w-3 h-3 text-red-400" /> HP
               </span>
               <span className="font-bold text-red-300">
-                {hudInfo.hp} / {hudInfo.maxHp} HP
+                {hudInfo.hp} / {hudInfo.maxHp}
               </span>
             </div>
             <div className="w-full bg-zinc-800 h-2 rounded-full overflow-hidden mt-1">
@@ -136,10 +138,10 @@ export const HudDisplay: React.FC<HudDisplayProps> = ({
           <div className="flex flex-col gap-1 p-2.5 rounded-lg bg-zinc-950/60 border border-zinc-800/60">
             <div className="flex justify-between items-center text-[11px]">
               <span className="text-zinc-500 flex items-center gap-1">
-                <Zap className="w-3 h-3 text-blue-400" /> Mana
+                <Zap className="w-3 h-3 text-blue-400" /> MP
               </span>
               <span className="font-bold text-blue-300">
-                {hudInfo.mp} / {hudInfo.maxMp} MP
+                {hudInfo.mp} / {hudInfo.maxMp}
               </span>
             </div>
             <div className="w-full bg-zinc-800 h-2 rounded-full overflow-hidden mt-1">
@@ -150,27 +152,40 @@ export const HudDisplay: React.FC<HudDisplayProps> = ({
             </div>
           </div>
 
-          {/* Coordinates & Floor */}
+          {/* Stamina Gauge */}
           <div className="flex flex-col gap-1 p-2.5 rounded-lg bg-zinc-950/60 border border-zinc-800/60">
-            <span className="text-zinc-500 text-[11px] flex items-center gap-1">
-              <MapPin className="w-3 h-3 text-emerald-400" /> Coordinates & Depth
-            </span>
-            <span className="text-sm font-bold text-emerald-300">
-              ({hudInfo.x}, {hudInfo.y}) | Floor {hudInfo.floor}
-            </span>
-            <div className="w-full bg-zinc-800 h-1.5 rounded-full overflow-hidden mt-0.5">
+            <div className="flex justify-between items-center text-[11px]">
+              <span className="text-zinc-500 flex items-center gap-1">
+                <Wind className="w-3 h-3 text-emerald-400" /> Stamina
+              </span>
+              <span className="font-bold text-emerald-300">
+                {hudInfo.stamina} / {hudInfo.maxStamina}
+              </span>
+            </div>
+            <div className="w-full bg-zinc-800 h-2 rounded-full overflow-hidden mt-1">
               <div
-                className="h-full bg-emerald-500"
-                style={{ width: `${xpPercent}%` }}
-                title={`Level Progress: ${xp}/${nextXp} XP`}
+                className="h-full bg-emerald-500 transition-all duration-300"
+                style={{ width: `${staminaPercent}%` }}
               />
             </div>
+          </div>
+
+          {/* Map Position: Grid (X: __, Y: __) | Dungeon Floor: [Level] */}
+          <div className="flex flex-col gap-1 p-2.5 rounded-lg bg-zinc-950/60 border border-zinc-800/60">
+            <span className="text-zinc-500 text-[11px] flex items-center gap-1">
+              <MapPin className="w-3 h-3 text-amber-400" /> Map Position
+            </span>
+            <span className="text-sm font-bold text-amber-300">
+              Grid (X: {hudInfo.x}, Y: {hudInfo.y})
+            </span>
+            <span className="text-[10px] text-zinc-500">
+              Dungeon Floor: {hudInfo.floor} (30x30)
+            </span>
           </div>
         </div>
 
         {/* ACTIVE STATUS EFFECTS ROW */}
         <div className="mt-3 pt-3 border-t border-zinc-800/60 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
-          {/* Player Active Statuses */}
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-[11px] text-zinc-500 uppercase tracking-wider flex items-center gap-1 font-semibold">
               <Activity className="w-3 h-3 text-amber-400" /> Condition:
@@ -202,7 +217,6 @@ export const HudDisplay: React.FC<HudDisplayProps> = ({
             )}
           </div>
 
-          {/* Target Hostile Status Effects (if hostile in front) */}
           {targetMonsterEffects && targetMonsterEffects.statusEffects.length > 0 && (
             <div className="flex flex-wrap items-center gap-1.5 bg-red-950/40 border border-red-900/50 px-2.5 py-1 rounded-lg">
               <span className="text-[10px] text-red-400 font-semibold uppercase flex items-center gap-1">
@@ -224,18 +238,24 @@ export const HudDisplay: React.FC<HudDisplayProps> = ({
           )}
         </div>
 
-        {/* Equipment Badges */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-3 pt-3 border-t border-zinc-800/60 text-xs">
+        {/* Equipment Badges: Main-Hand | Off-Hand | Armor */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mt-3 pt-3 border-t border-zinc-800/60 text-xs">
           <div className="flex items-center gap-2 p-2 rounded-lg bg-zinc-950/40 border border-zinc-800/40">
             <Sword className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-            <span className="text-zinc-500 shrink-0">Weapon:</span>
-            <span className="font-semibold text-zinc-200 truncate">{hudInfo.weapon}</span>
+            <span className="text-zinc-500 shrink-0">Main-Hand:</span>
+            <span className="font-semibold text-zinc-200 truncate">{hudInfo.mainHand}</span>
           </div>
 
           <div className="flex items-center gap-2 p-2 rounded-lg bg-zinc-950/40 border border-zinc-800/40">
             <Shield className="w-3.5 h-3.5 text-sky-400 shrink-0" />
-            <span className="text-zinc-500 shrink-0">Shield/Armor:</span>
-            <span className="font-semibold text-zinc-200 truncate">{hudInfo.shieldArmor}</span>
+            <span className="text-zinc-500 shrink-0">Off-Hand:</span>
+            <span className="font-semibold text-zinc-200 truncate">{hudInfo.offHand}</span>
+          </div>
+
+          <div className="flex items-center gap-2 p-2 rounded-lg bg-zinc-950/40 border border-zinc-800/40">
+            <ShieldCheck className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+            <span className="text-zinc-500 shrink-0">Armor:</span>
+            <span className="font-semibold text-zinc-200 truncate">{hudInfo.armor}</span>
           </div>
         </div>
       </div>

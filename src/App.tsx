@@ -75,16 +75,18 @@ export default function App() {
   const handleCommandSubmit = (rawCmd: string) => {
     const cmd = rawCmd.toLowerCase().trim();
 
-    if (cmd === '1' || cmd === 'w' || cmd.startsWith('forward') || cmd === 'move forward' || cmd === 'step') {
+    if (cmd === '1' || cmd === 'w' || cmd.startsWith('forward') || cmd === 'move forward' || cmd === 'step' || cmd === 'step forward') {
       handleAction(1);
     } else if (cmd === '2' || cmd === 'a' || cmd.includes('left') || cmd === 'turn left') {
       handleAction(2);
     } else if (cmd === '3' || cmd === 'd' || cmd.includes('right') || cmd === 'turn right') {
       handleAction(3);
-    } else if (cmd === '4' || cmd === 's' || cmd.includes('back') || cmd === '180') {
+    } else if (cmd === '4' || cmd === 's' || cmd.includes('back') || cmd === '180' || cmd === 'step back') {
       handleAction(4);
+    } else if (cmd === '5' || cmd === 'c' || cmd.startsWith('strafe')) {
+      handleAction(5);
     } else if (
-      cmd === '5' ||
+      cmd === '6' ||
       cmd === 'e' ||
       cmd.startsWith('interact') ||
       cmd.startsWith('open') ||
@@ -93,7 +95,7 @@ export default function App() {
       cmd.startsWith('drink') ||
       cmd.startsWith('descend')
     ) {
-      handleAction(5);
+      handleAction(6);
     } else if (cmd.includes('fire') || cmd === 'q') {
       handleCastSpell('firebolt');
     } else if (cmd.includes('heal') || cmd === 'h') {
@@ -110,12 +112,11 @@ export default function App() {
     } else if (cmd === 'restart') {
       handleRestart();
     } else {
-      // Default to Action 5 if ambiguous verb or number 1-5
       const num = parseInt(cmd, 10);
-      if (num >= 1 && num <= 5) {
+      if (num >= 1 && num <= 6) {
         handleAction(num);
       } else {
-        handleAction(5);
+        handleAction(6);
       }
     }
   };
@@ -134,9 +135,8 @@ export default function App() {
     ) || null;
 
   return (
-    <div className="min-h-screen bg-zinc-950 text-zinc-100 flex flex-col items-center justify-start p-3 sm:p-5 md:p-8 font-mono">
-      {/* Container with max width */}
-      <div className="w-full max-w-4xl flex flex-col gap-4">
+    <div className="min-h-screen bg-zinc-950 text-zinc-100 flex flex-col items-center justify-start p-2 sm:p-4 md:p-6 font-mono">
+      <div className="w-full max-w-5xl flex flex-col gap-3 sm:gap-4">
         {/* APP HEADER */}
         <header className="flex flex-col sm:flex-row items-center justify-between gap-3 p-3.5 rounded-xl border border-zinc-800 bg-zinc-900/90 shadow-xl backdrop-blur-md">
           <div className="flex items-center gap-3">
@@ -147,11 +147,11 @@ export default function App() {
               <h1 className="text-sm sm:text-base font-extrabold tracking-wider text-zinc-100 flex items-center gap-2">
                 <span>3D ASCII DUNGEON ENGINE</span>
                 <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-amber-500/10 border border-amber-500/30 text-amber-300">
-                  v1.0
+                  WIDESCREEN 30x12
                 </span>
               </h1>
               <p className="text-[11px] text-zinc-400">
-                Perspective Raycasting • Real-Time Depth Shading • Turn-Based Combat
+                Widescreen FOV • 11x11 Radar • 30x30 Dungeon Scale • Real-Time Depth Shading
               </p>
             </div>
           </div>

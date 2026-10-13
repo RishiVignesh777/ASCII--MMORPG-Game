@@ -2,34 +2,45 @@ import { DungeonMap, Item, Monster, Player, TileType } from '../types';
 
 export const STARTER_WEAPON: Item = {
   id: 'rusty_dagger',
-  name: 'Rusty Dagger',
+  name: 'Rusty Shortblade',
   type: 'weapon',
   value: 5,
-  bonusAtk: 2,
-  description: 'A notched blade recovered from old crypt rubble.',
+  bonusAtk: 3,
+  description: 'A notched iron blade recovered from old crypt rubble.',
+};
+
+export const STARTER_SHIELD: Item = {
+  id: 'oak_buckler',
+  name: 'Oak Buckler',
+  type: 'armor',
+  value: 8,
+  bonusDef: 1,
+  description: 'An iron-rimmed round wooden shield.',
 };
 
 export const STARTER_ARMOR: Item = {
   id: 'leather_tunic',
-  name: 'Leather Tunic',
+  name: 'Reinforced Leather Hauberk',
   type: 'armor',
-  value: 8,
-  bonusDef: 1,
-  description: 'Tough boiled leather offering basic protection.',
+  value: 12,
+  bonusDef: 2,
+  description: 'Tough boiled leather offering reliable physical protection.',
 };
 
 export const INITIAL_PLAYER: Player = {
-  x: 4,
-  y: 6,
+  x: 15,
+  y: 24,
   facing: 0, // Facing North
-  hp: 24,
-  maxHp: 24,
-  mp: 12,
-  maxMp: 12,
+  hp: 28,
+  maxHp: 28,
+  mp: 16,
+  maxMp: 16,
+  stamina: 24,
+  maxStamina: 24,
   level: 1,
   xp: 0,
-  nextXp: 30,
-  baseAttack: 3,
+  nextXp: 35,
+  baseAttack: 4,
   baseDefense: 1,
   weapon: STARTER_WEAPON,
   shieldArmor: STARTER_ARMOR,
@@ -39,16 +50,16 @@ export const INITIAL_PLAYER: Player = {
       name: 'Minor Health Potion',
       type: 'potion',
       value: 15,
-      healHp: 15,
-      description: 'A crimson draught that restores 15 HP.',
+      healHp: 18,
+      description: 'A crimson draught that restores 18 HP.',
     },
     {
       id: 'mana_vial',
       name: 'Mana Vial',
       type: 'potion',
       value: 15,
-      healMp: 10,
-      description: 'Restores 10 MP for spells.',
+      healMp: 12,
+      description: 'Restores 12 MP for spellcasting.',
     },
     {
       id: 'antidote_vial',
@@ -66,262 +77,73 @@ export const INITIAL_PLAYER: Player = {
       appliesStatus: {
         type: 'hasted',
         name: 'Hasted',
-        duration: 4,
+        duration: 5,
         potency: 3,
-        description: 'Surges with kinetic speed (+3 ATK, heightened critical chance for 4 turns).',
+        description: 'Surges with kinetic speed (+3 ATK, heightened critical chance for 5 turns).',
       },
-      description: 'Imbues the drinker with blinding speed (+3 ATK & high critical rate for 4 turns).',
+      description: 'Imbues the drinker with blinding speed (+3 ATK & high critical rate for 5 turns).',
     },
   ],
-  gold: 10,
-  keys: 0,
+  gold: 15,
+  keys: 1,
   statusEffects: [],
 };
 
-// Floor 1: The Crypt Entrance
-// Player at (4, 6) facing North (0). At (4, 5) is door_closed.
+// Floor 1: 30x30 Floor Layout
+// Player starts at (15, 24) facing North (0). At (15, 23) is heavy door_closed.
 export function createFloor1(): DungeonMap {
-  const width = 11;
-  const height = 10;
+  const width = 30;
+  const height = 30;
   const tiles: TileType[][] = Array.from({ length: height }, () =>
     Array.from({ length: width }, () => 'wall' as TileType)
   );
 
-  // Carve start chamber & corridor
-  // Player room: (3..5, 6..7)
-  for (let y = 6; y <= 7; y++) {
-    for (let x = 3; x <= 5; x++) {
+  // 1. Starting Chamber (x: 13..17, y: 24..27)
+  for (let y = 24; y <= 27; y++) {
+    for (let x = 13; x <= 17; x++) {
       tiles[y][x] = 'floor';
     }
   }
 
-  // Door directly North of player at (4, 5)
-  tiles[5][4] = 'door_closed';
+  // Heavy wooden door right in front of player
+  tiles[23][15] = 'door_closed';
 
-  // Central corridor going North (4, 1..4)
-  for (let y = 1; y <= 4; y++) {
-    tiles[y][4] = 'floor';
-  }
-
-  // West chamber (1..3, 2..4)
-  for (let y = 2; y <= 4; y++) {
-    for (let x = 1; x <= 3; x++) {
+  // 2. Grand Central Corridor (x: 14..16, y: 10..22)
+  for (let y = 10; y <= 22; y++) {
+    for (let x = 14; x <= 16; x++) {
       tiles[y][x] = 'floor';
     }
   }
-  tiles[3][1] = 'fountain'; // Healing fountain
 
-  // East chamber (5..9, 2..4)
-  for (let y = 2; y <= 4; y++) {
-    for (let x = 5; x <= 9; x++) {
+  // 3. West Wing Corridors and Chambers (x: 4..13, y: 16..22)
+  for (let x = 7; x <= 14; x++) tiles[19][x] = 'floor';
+  for (let y = 16; y <= 22; y++) {
+    for (let x = 4; x <= 9; x++) {
       tiles[y][x] = 'floor';
     }
   }
-  tiles[2][9] = 'chest'; // Chest with Iron Sword
+  tiles[17][5] = 'fountain'; // Healing Fountain in West crypt
 
-  // North chamber (3..6, 1)
-  for (let x = 3; x <= 6; x++) {
-    tiles[1][x] = 'floor';
-  }
-  tiles[1][6] = 'stairs_down'; // Stairs down to Floor 2
-
-  const explored = Array.from({ length: height }, () =>
-    Array.from({ length: width }, () => false)
-  );
-
-  const monsters: Monster[] = [
-    {
-      id: 'goblin_1',
-      name: 'Goblin Scout',
-      symbol: 'g',
-      x: 7,
-      y: 3,
-      hp: 10,
-      maxHp: 10,
-      attack: 3,
-      defense: 1,
-      xpReward: 15,
-      description: 'A wiry green goblin brandishing a jagged cleaver.',
-    },
-    {
-      id: 'skeleton_1',
-      name: 'Skeleton Guardian',
-      symbol: 'S',
-      x: 2,
-      y: 2,
-      hp: 14,
-      maxHp: 14,
-      attack: 4,
-      defense: 2,
-      xpReward: 20,
-      description: 'Ancient animated bones clutching a rusted broadsword.',
-    },
-    {
-      id: 'orc_1',
-      name: 'Orc Warrior',
-      symbol: 'M',
-      x: 4,
-      y: 2,
-      hp: 18,
-      maxHp: 18,
-      attack: 5,
-      defense: 2,
-      xpReward: 35,
-      description: 'A hulking orc veteran blocking the passage to the lower vaults.',
-    },
-  ];
-
-  const chests = [
-    {
-      x: 9,
-      y: 2,
-      opened: false,
-      item: {
-        id: 'iron_shortsword',
-        name: 'Iron Shortsword',
-        type: 'weapon' as const,
-        value: 25,
-        bonusAtk: 5,
-        description: 'A forged iron blade with a balanced crossguard.',
-      },
-    },
-  ];
-
-  return {
-    width,
-    height,
-    tiles,
-    monsters,
-    chests,
-    explored,
-  };
-}
-
-// Floor 2: The Sunken Catacombs
-export function createFloor2(): DungeonMap {
-  const width = 13;
-  const height = 12;
-  const tiles: TileType[][] = Array.from({ length: height }, () =>
-    Array.from({ length: width }, () => 'wall' as TileType)
-  );
-
-  // Main paths
-  for (let y = 8; y <= 10; y++) {
-    for (let x = 5; x <= 7; x++) tiles[y][x] = 'floor';
-  }
-  tiles[7][6] = 'door_closed';
-
-  for (let y = 2; y <= 6; y++) tiles[y][6] = 'floor';
-
-  // East hall
-  for (let x = 6; x <= 10; x++) tiles[5][x] = 'floor';
-  for (let y = 3; y <= 6; y++) tiles[y][10] = 'floor';
-  tiles[3][10] = 'chest';
-
-  // West hall
-  for (let x = 2; x <= 6; x++) tiles[3][x] = 'floor';
-  for (let y = 2; y <= 5; y++) tiles[y][2] = 'floor';
-  tiles[2][2] = 'fountain';
-
-  // North room
-  for (let x = 4; x <= 8; x++) {
-    for (let y = 1; y <= 2; y++) {
+  // 4. East Wing Barracks (x: 16..25, y: 16..22)
+  for (let x = 16; x <= 22; x++) tiles[19][x] = 'floor';
+  for (let y = 16; y <= 22; y++) {
+    for (let x = 20; x <= 25; x++) {
       tiles[y][x] = 'floor';
     }
   }
-  tiles[1][8] = 'stairs_down';
+  tiles[17][24] = 'chest'; // Treasure chest
 
-  const explored = Array.from({ length: height }, () =>
-    Array.from({ length: width }, () => false)
-  );
-
-  const monsters: Monster[] = [
-    {
-      id: 'orc_brute',
-      name: 'Orc Brute',
-      symbol: 'M',
-      x: 6,
-      y: 4,
-      hp: 22,
-      maxHp: 22,
-      attack: 6,
-      defense: 3,
-      xpReward: 40,
-      description: 'A scarred orc veteran in scrap armor.',
-    },
-    {
-      id: 'necro_apprentice',
-      name: 'Necromancer',
-      symbol: 'N',
-      x: 9,
-      y: 4,
-      hp: 16,
-      maxHp: 16,
-      attack: 7,
-      defense: 1,
-      xpReward: 45,
-      description: 'A hooded sorcerer chanting dark hexes.',
-    },
-    {
-      id: 'catacomb_skeleton',
-      name: 'Skeleton Knight',
-      symbol: 'S',
-      x: 3,
-      y: 4,
-      hp: 18,
-      maxHp: 18,
-      attack: 5,
-      defense: 3,
-      xpReward: 35,
-      description: 'An undead knight bearing an iron shield.',
-    },
-  ];
-
-  const chests = [
-    {
-      x: 10,
-      y: 3,
-      opened: false,
-      item: {
-        id: 'chainmail_armor',
-        name: 'Steel Chainmail',
-        type: 'armor' as const,
-        value: 50,
-        bonusDef: 3,
-        description: 'Interlinked steel rings providing formidable physical defense.',
-      },
-    },
-  ];
-
-  return {
-    width,
-    height,
-    tiles,
-    monsters,
-    chests,
-    explored,
-  };
-}
-
-// Floor 3: The Abyssal Vault (Boss Floor)
-export function createFloor3(): DungeonMap {
-  const width = 13;
-  const height = 13;
-  const tiles: TileType[][] = Array.from({ length: height }, () =>
-    Array.from({ length: width }, () => 'wall' as TileType)
-  );
-
-  // Entrance
-  for (let y = 9; y <= 11; y++) {
-    for (let x = 5; x <= 7; x++) tiles[y][x] = 'floor';
+  // 5. Mid Crossway (x: 8..22, y: 13..14)
+  for (let x = 8; x <= 22; x++) {
+    tiles[13][x] = 'floor';
+    tiles[14][x] = 'floor';
   }
-  tiles[8][6] = 'door_closed';
 
-  // Great Hall
-  for (let y = 2; y <= 7; y++) {
-    for (let x = 3; x <= 9; x++) {
-      // Pillars in center of hall
-      if ((x === 4 || x === 8) && (y === 4 || y === 6)) {
+  // 6. North Sanctum & Great Hall (x: 10..20, y: 4..9)
+  for (let y = 4; y <= 9; y++) {
+    for (let x = 10; x <= 20; x++) {
+      // Pillars in hall
+      if ((x === 12 || x === 18) && (y === 6 || y === 8)) {
         tiles[y][x] = 'wall';
       } else {
         tiles[y][x] = 'floor';
@@ -329,7 +151,264 @@ export function createFloor3(): DungeonMap {
     }
   }
 
-  tiles[2][6] = 'stairs_down'; // Relic portal / Exit victory
+  // Staircase down to Floor 2
+  tiles[5][15] = 'stairs_down';
+
+  const explored = Array.from({ length: height }, () =>
+    Array.from({ length: width }, () => false)
+  );
+
+  const monsters: Monster[] = [
+    {
+      id: 'goblin_sentry',
+      name: 'Goblin Scout',
+      symbol: 'g',
+      x: 15,
+      y: 18,
+      hp: 12,
+      maxHp: 12,
+      attack: 4,
+      defense: 1,
+      xpReward: 18,
+      description: 'A wiry green goblin brandishing a jagged cleaver.',
+    },
+    {
+      id: 'skeleton_crypt',
+      name: 'Skeleton Guardian',
+      symbol: 'S',
+      x: 6,
+      y: 19,
+      hp: 16,
+      maxHp: 16,
+      attack: 5,
+      defense: 2,
+      xpReward: 25,
+      description: 'Ancient animated bones clutching a rusted broadsword.',
+    },
+    {
+      id: 'goblin_chief',
+      name: 'Goblin Skulker',
+      symbol: 'g',
+      x: 23,
+      y: 19,
+      hp: 14,
+      maxHp: 14,
+      attack: 5,
+      defense: 1,
+      xpReward: 22,
+      description: 'A cunning goblin archer lurking in the eastern barracks.',
+    },
+    {
+      id: 'orc_vanguard',
+      name: 'Orc Warrior',
+      symbol: 'M',
+      x: 15,
+      y: 11,
+      hp: 22,
+      maxHp: 22,
+      attack: 6,
+      defense: 3,
+      xpReward: 45,
+      description: 'A hulking orc veteran blocking the grand passage to the lower vaults.',
+    },
+    {
+      id: 'hall_guard',
+      name: 'Crypt Skeleton Knight',
+      symbol: 'S',
+      x: 13,
+      y: 7,
+      hp: 18,
+      maxHp: 18,
+      attack: 5,
+      defense: 3,
+      xpReward: 30,
+      description: 'An armored skeleton guarding the northern stairway.',
+    },
+  ];
+
+  const chests = [
+    {
+      x: 24,
+      y: 17,
+      opened: false,
+      item: {
+        id: 'iron_broadsword',
+        name: 'Forged Iron Broadsword',
+        type: 'weapon' as const,
+        value: 30,
+        bonusAtk: 6,
+        description: 'A finely balanced double-edged broadsword.',
+      },
+    },
+  ];
+
+  return {
+    width,
+    height,
+    tiles,
+    monsters,
+    chests,
+    explored,
+  };
+}
+
+// Floor 2: 30x30 Sunken Catacombs
+export function createFloor2(): DungeonMap {
+  const width = 30;
+  const height = 30;
+  const tiles: TileType[][] = Array.from({ length: height }, () =>
+    Array.from({ length: width }, () => 'wall' as TileType)
+  );
+
+  // Entrance area
+  for (let y = 22; y <= 26; y++) {
+    for (let x = 13; x <= 17; x++) tiles[y][x] = 'floor';
+  }
+  tiles[21][15] = 'door_closed';
+
+  // Winding catacomb corridors
+  for (let y = 12; y <= 20; y++) {
+    for (let x = 14; x <= 16; x++) tiles[y][x] = 'floor';
+  }
+
+  // East winding wing
+  for (let x = 16; x <= 24; x++) tiles[16][x] = 'floor';
+  for (let y = 10; y <= 18; y++) {
+    for (let x = 22; x <= 26; x++) tiles[y][x] = 'floor';
+  }
+  tiles[12][24] = 'chest';
+
+  // West winding wing
+  for (let x = 6; x <= 14; x++) tiles[16][x] = 'floor';
+  for (let y = 10; y <= 18; y++) {
+    for (let x = 4; x <= 8; x++) tiles[y][x] = 'floor';
+  }
+  tiles[12][6] = 'fountain';
+
+  // North chamber with stairs
+  for (let y = 4; y <= 10; y++) {
+    for (let x = 10; x <= 20; x++) {
+      tiles[y][x] = 'floor';
+    }
+  }
+  tiles[5][15] = 'stairs_down';
+
+  const explored = Array.from({ length: height }, () =>
+    Array.from({ length: width }, () => false)
+  );
+
+  const monsters: Monster[] = [
+    {
+      id: 'orc_berserker',
+      name: 'Orc Berserker',
+      symbol: 'M',
+      x: 15,
+      y: 15,
+      hp: 26,
+      maxHp: 26,
+      attack: 7,
+      defense: 3,
+      xpReward: 50,
+      description: 'A battle-hardened orc brandishing dual jagged axes.',
+    },
+    {
+      id: 'catacomb_necro',
+      name: 'Necromancer',
+      symbol: 'N',
+      x: 24,
+      y: 14,
+      hp: 20,
+      maxHp: 20,
+      attack: 8,
+      defense: 2,
+      xpReward: 55,
+      description: 'A hooded dark sorcerer chanting foul soul hexes.',
+    },
+    {
+      id: 'armored_skele',
+      name: 'Dread Skeleton',
+      symbol: 'S',
+      x: 6,
+      y: 14,
+      hp: 22,
+      maxHp: 22,
+      attack: 6,
+      defense: 4,
+      xpReward: 40,
+      description: 'An ancient warrior preserved in tarnished plate armor.',
+    },
+    {
+      id: 'gate_keeper',
+      name: 'Orc Warlord',
+      symbol: 'M',
+      x: 15,
+      y: 8,
+      hp: 30,
+      maxHp: 30,
+      attack: 8,
+      defense: 4,
+      xpReward: 70,
+      description: 'A towering orc champion defending the descent.',
+    },
+  ];
+
+  const chests = [
+    {
+      x: 24,
+      y: 11,
+      opened: false,
+      item: {
+        id: 'steel_plate',
+        name: 'Tempered Steel Plate',
+        type: 'armor' as const,
+        value: 65,
+        bonusDef: 5,
+        description: 'Heavy plate armor capable of turning lethal blows aside.',
+      },
+    },
+  ];
+
+  return {
+    width,
+    height,
+    tiles,
+    monsters,
+    chests,
+    explored,
+  };
+}
+
+// Floor 3: 30x30 The Abyssal Vault (Boss Floor)
+export function createFloor3(): DungeonMap {
+  const width = 30;
+  const height = 30;
+  const tiles: TileType[][] = Array.from({ length: height }, () =>
+    Array.from({ length: width }, () => 'wall' as TileType)
+  );
+
+  // Entrance Hall
+  for (let y = 22; y <= 26; y++) {
+    for (let x = 13; x <= 17; x++) tiles[y][x] = 'floor';
+  }
+  tiles[21][15] = 'door_closed';
+
+  // Great Abyssal Chamber (x: 6..24, y: 5..19)
+  for (let y = 5; y <= 19; y++) {
+    for (let x = 6; x <= 24; x++) {
+      // Grand columns
+      if (
+        (x === 9 || x === 15 || x === 21) &&
+        (y === 8 || y === 12 || y === 16)
+      ) {
+        tiles[y][x] = 'wall';
+      } else {
+        tiles[y][x] = 'floor';
+      }
+    }
+  }
+
+  // Relic victory portal
+  tiles[6][15] = 'stairs_down';
 
   const explored = Array.from({ length: height }, () =>
     Array.from({ length: width }, () => false)
@@ -340,55 +419,55 @@ export function createFloor3(): DungeonMap {
       id: 'minotaur_boss',
       name: 'Minotaur Dreadlord',
       symbol: 'B',
-      x: 6,
-      y: 3,
-      hp: 45,
-      maxHp: 45,
-      attack: 9,
-      defense: 4,
-      xpReward: 120,
-      description: 'A terrifying beast wielding a double-bladed battleaxe.',
+      x: 15,
+      y: 10,
+      hp: 55,
+      maxHp: 55,
+      attack: 10,
+      defense: 5,
+      xpReward: 150,
+      description: 'A gargantuan beast of darkness wielding a colossal dual-bladed war axe.',
     },
     {
-      id: 'vault_guard_1',
-      name: 'Demon Thrall',
+      id: 'demon_thrall_1',
+      name: 'Abyssal Thrall',
       symbol: 'M',
-      x: 4,
-      y: 5,
-      hp: 18,
-      maxHp: 18,
-      attack: 6,
-      defense: 2,
-      xpReward: 30,
-      description: 'A corrupted humanoid burning with demonic embers.',
+      x: 11,
+      y: 14,
+      hp: 22,
+      maxHp: 22,
+      attack: 7,
+      defense: 3,
+      xpReward: 35,
+      description: 'A demon infused with hellfire.',
     },
     {
-      id: 'vault_guard_2',
-      name: 'Demon Thrall',
+      id: 'demon_thrall_2',
+      name: 'Abyssal Thrall',
       symbol: 'M',
-      x: 8,
-      y: 5,
-      hp: 18,
-      maxHp: 18,
-      attack: 6,
-      defense: 2,
-      xpReward: 30,
-      description: 'A corrupted humanoid burning with demonic embers.',
+      x: 19,
+      y: 14,
+      hp: 22,
+      maxHp: 22,
+      attack: 7,
+      defense: 3,
+      xpReward: 35,
+      description: 'A demon infused with hellfire.',
     },
   ];
 
   const chests = [
     {
-      x: 3,
-      y: 2,
+      x: 8,
+      y: 6,
       opened: false,
       item: {
         id: 'flamebrand_blade',
         name: 'Flamebrand Blade',
         type: 'weapon' as const,
-        value: 120,
-        bonusAtk: 9,
-        description: 'A legendary sword glowing with searing elemental fire.',
+        value: 140,
+        bonusAtk: 11,
+        description: 'A legendary sword wreathed in roaring dragon fire.',
       },
     },
   ];

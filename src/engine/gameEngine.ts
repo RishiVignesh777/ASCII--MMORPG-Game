@@ -38,7 +38,6 @@ export function applyStatusEffect(
   }
   const existing = target.statusEffects.find((e) => e.type === newEffect.type);
   if (existing) {
-    // Refresh duration if higher, or stack
     existing.duration = Math.max(existing.duration, newEffect.duration);
     existing.potency = Math.max(existing.potency, newEffect.potency);
   } else {
@@ -78,7 +77,6 @@ function tickStatusEffects(
   const remainingEffects: StatusEffect[] = [];
 
   for (const effect of entity.statusEffects) {
-    // Apply damage-over-time if poisoned or burned
     if (effect.type === 'poisoned') {
       const dmg = effect.potency || 2;
       entity.hp = Math.max(0, entity.hp - dmg);
@@ -99,7 +97,6 @@ function tickStatusEffects(
       }
     }
 
-    // Decrement duration
     effect.duration -= 1;
     if (effect.duration > 0) {
       remainingEffects.push(effect);
@@ -122,7 +119,13 @@ export function createInitialGame(): GameState {
   const player: Player = JSON.parse(JSON.stringify(INITIAL_PLAYER));
   if (!player.statusEffects) player.statusEffects = [];
 
-  const turnLog = buildTurnLog(player, dungeonMap, currentFloor, 1, 'Dungeon entered. Standing before a heavy door.');
+  const turnLog = buildTurnLog(
+    player,
+    dungeonMap,
+    currentFloor,
+    1,
+    'Expansive 30x30 Dungeon entered. Standing before a heavy door.'
+  );
 
   return {
     player,
@@ -152,26 +155,27 @@ export function buildTurnLog(
   const weaponBonus = player.weapon.bonusAtk ? ` (+${player.weapon.bonusAtk} ATK)` : '';
   const armorBonus = player.shieldArmor.bonusDef ? ` (+${player.shieldArmor.bonusDef} DEF)` : '';
 
-  // Determine dynamic 5th action option
-  let action5 = 'Search floor for secrets';
+  // Determine dynamic 6th action option
+  let action6 = 'Search floor for secrets';
   if (view.monsterInFront) {
-    action5 = `Attack ${view.monsterInFront.name} in view`;
+    action6 = `Attack ${view.monsterInFront.name} in view`;
   } else if (view.objectInFront === 'door_closed') {
-    action5 = 'Open wooden door in view';
+    action6 = 'Open heavy door in view';
   } else if (view.objectInFront === 'chest') {
-    action5 = 'Open treasure chest in view';
+    action6 = 'Open treasure chest in view';
   } else if (view.objectInFront === 'fountain') {
-    action5 = 'Drink holy water from fountain';
+    action6 = 'Drink from holy fountain in view';
   } else if (view.objectInFront === 'stairs_down') {
-    action5 = `Descend stairs to Floor ${floor + 1}`;
+    action6 = `Descend stairs to Floor ${floor + 1}`;
   }
 
   const actions = [
-    'Move Forward',
+    'Step Forward',
     'Turn Left (90°)',
     'Turn Right (90°)',
-    'Move Backward / Turn 180°',
-    action5,
+    'Step Back / Turn 180°',
+    'Strafe Left / Right',
+    action6,
   ];
 
   const targetMonsterEffects = view.monsterInFront
@@ -193,6 +197,11 @@ export function buildTurnLog(
       maxHp: player.maxHp,
       mp: player.mp,
       maxMp: player.maxMp,
+      stamina: player.stamina,
+      maxStamina: player.maxStamina,
+      mainHand: `${player.weapon.name}${weaponBonus}`,
+      offHand: 'Oak Buckler (+1 DEF)',
+      armor: `${player.shieldArmor.name}${armorBonus}`,
       weapon: `${player.weapon.name}${weaponBonus}`,
       shieldArmor: `${player.shieldArmor.name}${armorBonus}`,
       x: player.x,
@@ -210,10 +219,10 @@ export function buildTurnLog(
 
 // Format the Turn into the exact 4-section format specified by the user prompt
 export function formatTurnResponse(log: TurnLog): string {
-  // Combine Viewport & Mini-map side by side
+  // Combine Viewport & Mini-map side by side (12 lines)
   const combinedLines: string[] = [];
-  for (let i = 0; i < 8; i++) {
-    const vp = log.viewportAscii[i] || '+----------------+';
+  for (let i = 0; i < 12; i++) {
+    const vp = log.viewportAscii[i] || '+------------------------------+';
     const mm = log.miniMapAscii[i] || '';
     combinedLines.push(`${vp}  ${mm}`);
   }
@@ -232,22 +241,16 @@ export function formatTurnResponse(log: TurnLog): string {
     lootSection = `\nLOOT:\n* ${log.lootNotification}\n`;
   }
 
-  const statusStr =
-    log.hudInfo.statusEffects && log.hudInfo.statusEffects.length > 0
-      ? log.hudInfo.statusEffects.map((e) => `${e.name} (${e.duration}t)`).join(', ')
-      : 'Normal';
-
-  return `1. 3D FIRST-PERSON VIEWPORT & MINI-MAP:
+  return `1. WIDESCREEN 3D VIEWPORT & EXPANDED MINI-MAP:
 \`\`\`
 ${combinedLines.join('\n')}
 \`\`\`
 
 2. COMPASS & HUD:
-- Heading: ${log.heading}
-- Health: ${log.hudInfo.hp}/${log.hudInfo.maxHp} HP | Mana: ${log.hudInfo.mp}/${log.hudInfo.maxMp} MP
-- Weapon: ${log.hudInfo.weapon} | Shield/Armor: ${log.hudInfo.shieldArmor}
-- Status: ${statusStr}
-- Room Coordinates: (${log.hudInfo.x}, ${log.hudInfo.y}) | Floor: ${log.hudInfo.floor}
+- Orientation: ${log.heading}
+- Stats: HP: ${log.hudInfo.hp}/${log.hudInfo.maxHp} | MP: ${log.hudInfo.mp}/${log.hudInfo.maxMp} | Stamina: ${log.hudInfo.stamina}/${log.hudInfo.maxStamina}
+- Equipment: Main-Hand: ${log.hudInfo.mainHand} | Off-Hand: ${log.hudInfo.offHand} | Armor: ${log.hudInfo.armor}
+- Map Position: Grid (X: ${log.hudInfo.x}, Y: ${log.hudInfo.y}) | Dungeon Floor: ${log.hudInfo.floor}
 ${combatSection}${lootSection}
 3. VIEWPORT DESCRIPTION:
 ${log.viewportDescription}
@@ -258,7 +261,7 @@ ${actionsList}`;
 
 export function handlePlayerAction(
   state: GameState,
-  actionIndex: number // 1: Forward, 2: Turn Left, 3: Turn Right, 4: Back/180, 5: Interact
+  actionIndex: number // 1: Step Forward, 2: Turn Left, 3: Turn Right, 4: Step Back/180, 5: Strafe, 6: Interact
 ): GameState {
   if (state.isGameOver) return state;
 
@@ -289,10 +292,13 @@ export function handlePlayerAction(
   const targetTile = getTile(targetX, targetY);
   const targetMonster = getMonster(targetX, targetY);
 
+  // Passive stamina recovery (+1 per turn up to max)
+  player.stamina = Math.min(player.maxStamina, player.stamina + 1);
+
   switch (actionIndex) {
     case 1: {
-      // 1. Move Forward
-      actionTakenName = 'Move Forward';
+      // 1. Step Forward
+      actionTakenName = 'Step Forward';
       if (targetMonster) {
         actionTakenName = `Blocked by ${targetMonster.name}! You must attack.`;
         sounds.bump();
@@ -302,7 +308,7 @@ export function handlePlayerAction(
         sounds.bump();
         floatingText = 'Blocked by solid wall';
       } else if (targetTile === 'door_closed') {
-        actionTakenName = 'The heavy wooden door is shut. Interact (Action 5) to open it.';
+        actionTakenName = 'The heavy wooden door is shut. Interact (Action 6) to open it.';
         sounds.bump();
         floatingText = 'Door is closed';
       } else {
@@ -340,7 +346,7 @@ export function handlePlayerAction(
     }
 
     case 4: {
-      // 4. Move Backward / Turn 180°
+      // 4. Step Back / Turn 180°
       const backX = player.x - dx;
       const backY = player.y - dy;
       const backTile = getTile(backX, backY);
@@ -362,16 +368,46 @@ export function handlePlayerAction(
     }
 
     case 5: {
-      // 5. Contextual Interaction
+      // 5. Strafe Left / Right
+      const leftX = player.x - dy;
+      const leftY = player.y + dx;
+      const leftTile = getTile(leftX, leftY);
+      const leftMonster = getMonster(leftX, leftY);
+
+      const rightX = player.x + dy;
+      const rightY = player.y - dx;
+      const rightTile = getTile(rightX, rightY);
+      const rightMonster = getMonster(rightX, rightY);
+
+      if (leftTile === 'floor' && !leftMonster) {
+        player.x = leftX;
+        player.y = leftY;
+        sounds.step();
+        actionTakenName = 'Strafed laterally to the left.';
+        floatingText = 'Strafed Left';
+      } else if (rightTile === 'floor' && !rightMonster) {
+        player.x = rightX;
+        player.y = rightY;
+        sounds.step();
+        actionTakenName = 'Strafed laterally to the right.';
+        floatingText = 'Strafed Right';
+      } else {
+        sounds.bump();
+        actionTakenName = 'Lateral corridors on both sides are blocked by solid stone.';
+        floatingText = 'Strafe Blocked';
+      }
+      break;
+    }
+
+    case 6: {
+      // 6. Context Interaction
       if (targetMonster) {
-        // COMBAT MATH WITH STATUS EFFECTS!
         actionTakenName = `Attack ${targetMonster.name}`;
         sounds.attack();
         flashEffect = 'hit';
 
         if (!targetMonster.statusEffects) targetMonster.statusEffects = [];
 
-        // Player Status Modifiers
         const isHasted = player.statusEffects.some((e) => e.type === 'hasted');
         const isWeakened = player.statusEffects.some((e) => e.type === 'weakened');
         const critChance = isHasted ? 0.45 : 0.2;
@@ -382,8 +418,6 @@ export function handlePlayerAction(
         if (isWeakened) playerAtk = Math.max(1, playerAtk - 2);
 
         const atkRoll = Math.floor(Math.random() * 4);
-
-        // Monster Status Modifiers
         const monsterWeakened = targetMonster.statusEffects.some((e) => e.type === 'weakened');
         const monsterDef = Math.max(0, targetMonster.defense - (monsterWeakened ? 1 : 0));
 
@@ -397,11 +431,10 @@ export function handlePlayerAction(
         floatingText = `-${dmg} HP to ${targetMonster.name}`;
 
         if (targetMonster.hp <= 0) {
-          // Monster defeated!
           targetMonster.hp = 0;
           sounds.hit();
           player.xp += targetMonster.xpReward;
-          const goldDropped = Math.floor(Math.random() * 12) + 5;
+          const goldDropped = Math.floor(Math.random() * 14) + 6;
           player.gold += goldDropped;
 
           combatLog.push(`★ Defeated ${targetMonster.name}! Gained ${targetMonster.xpReward} XP and ${goldDropped} gold.`);
@@ -417,12 +450,13 @@ export function handlePlayerAction(
             player.hp = player.maxHp;
             player.maxMp += 4;
             player.mp = player.maxMp;
+            player.maxStamina += 4;
+            player.stamina = player.maxStamina;
             player.baseAttack += 1;
             player.nextXp = Math.floor(player.nextXp * 1.8);
-            combatLog.push(`▲ LEVEL UP! Reached Level ${player.level}! Max HP/MP increased and fully restored!`);
+            combatLog.push(`▲ LEVEL UP! Reached Level ${player.level}! All attributes increased and fully restored!`);
           }
         } else {
-          // Monster counter-attacks!
           let monsterAtk = targetMonster.attack;
           if (monsterWeakened) monsterAtk = Math.max(1, monsterAtk - 2);
 
@@ -436,9 +470,7 @@ export function handlePlayerAction(
           flashEffect = 'damage';
           combatLog.push(`${targetMonster.name} retaliates, slashing you for ${monsterDmg} DMG!`);
 
-          // Monster Status Effect Procs on Player!
           if (targetMonster.symbol === 'g' && Math.random() < 0.4) {
-            // Goblin inflicts Poison
             applyStatusEffect(player, {
               type: 'poisoned',
               name: 'Poisoned',
@@ -447,20 +479,18 @@ export function handlePlayerAction(
               description: 'Vile goblin toxins sap 2 HP each turn.',
             });
             sounds.debuff();
-            combatLog.push(`☣ The Goblin Scout's jagged blade is venomous! You are POISONED (3 turns)!`);
+            combatLog.push('☣ The Goblin Scout blade is poisoned! You are POISONED (3 turns)!');
           } else if (targetMonster.symbol === 'S' && Math.random() < 0.4) {
-            // Skeleton inflicts Weakened
             applyStatusEffect(player, {
               type: 'weakened',
               name: 'Weakened',
               duration: 3,
               potency: 2,
-              description: 'Chilling undead crypt frost numbs your muscles (-2 ATK for 3 turns).',
+              description: 'Chilling undead frost numbs your muscles (-2 ATK).',
             });
             sounds.debuff();
-            combatLog.push(`❄ The Skeleton's chilling crypt frost saps your strength! You are WEAKENED (-2 ATK for 3 turns)!`);
+            combatLog.push('❄ The Skeleton chilling frost numbs your strength! You are WEAKENED (-2 ATK)!');
           } else if (targetMonster.symbol === 'N' && Math.random() < 0.5) {
-            // Necromancer inflicts Weakened or Poison
             applyStatusEffect(player, {
               type: 'weakened',
               name: 'Weakened',
@@ -469,9 +499,8 @@ export function handlePlayerAction(
               description: 'A shadowy hex degrades physical prowess (-2 ATK for 4 turns).',
             });
             sounds.debuff();
-            combatLog.push(`🔮 The Necromancer hexes your soul! You are WEAKENED (-2 ATK for 4 turns)!`);
+            combatLog.push('🔮 The Necromancer hexes your soul! You are WEAKENED (-2 ATK)!');
           } else if (targetMonster.symbol === 'B' && Math.random() < 0.4) {
-            // Minotaur Boss crushing blow
             applyStatusEffect(player, {
               type: 'weakened',
               name: 'Weakened',
@@ -480,7 +509,7 @@ export function handlePlayerAction(
               description: 'A colossal shockwave dazes you (-2 ATK for 3 turns).',
             });
             sounds.debuff();
-            combatLog.push(`💥 The Minotaur Dreadlord's seismic blow dazes you! You are WEAKENED (-2 ATK)!`);
+            combatLog.push('💥 The Minotaur colossal blow dazes you! You are WEAKENED (-2 ATK)!');
           }
 
           if (player.hp <= 0) {
@@ -492,7 +521,7 @@ export function handlePlayerAction(
         map.tiles[targetY][targetX] = 'door_open';
         sounds.door();
         flashEffect = 'door';
-        actionTakenName = 'You push open the heavy wooden door with a loud groan.';
+        actionTakenName = 'You push open the heavy reinforced door with a loud groan.';
         floatingText = 'Door Opened';
       } else if (targetTile === 'chest') {
         const chest = map.chests.find((c) => c.x === targetX && c.y === targetY);
@@ -525,9 +554,10 @@ export function handlePlayerAction(
         const healMp = player.maxMp - player.mp;
         player.hp = player.maxHp;
         player.mp = player.maxMp;
+        player.stamina = player.maxStamina;
         const cleansed = removeStatusEffects(player, ['poisoned', 'weakened', 'burned']);
         const cleanseNotice = cleansed.length > 0 ? ` Cleansed ${cleansed.join(', ')}!` : '';
-        actionTakenName = `You drink from the radiant fountain. Wounds seal, mana surges!${cleanseNotice}`;
+        actionTakenName = `You drink from the radiant fountain. Wounds seal, mana and stamina surge!${cleanseNotice}`;
         floatingText = `+${healHp} HP, +${healMp} MP`;
       } else if (targetTile === 'stairs_down') {
         sounds.stairs();
@@ -540,22 +570,16 @@ export function handlePlayerAction(
         map.chests = newMap.chests;
         map.explored = newMap.explored;
 
-        if (floor === 2) {
-          player.x = 6;
-          player.y = 8;
-          player.facing = 0;
-        } else if (floor === 3) {
-          player.x = 6;
-          player.y = 9;
-          player.facing = 0;
-        }
+        player.x = 15;
+        player.y = 24;
+        player.facing = 0;
 
         actionTakenName = `Descended the spiral stone stairway into the dark abyss of Floor ${floor}!`;
         floatingText = `Entered Floor ${floor}`;
       } else {
         const foundGold = Math.random() < 0.35;
         if (foundGold) {
-          const goldAmount = Math.floor(Math.random() * 5) + 2;
+          const goldAmount = Math.floor(Math.random() * 6) + 3;
           player.gold += goldAmount;
           sounds.chest();
           actionTakenName = `Searched the floor cracks and found ${goldAmount} ancient gold coins!`;
@@ -577,7 +601,6 @@ export function handlePlayerAction(
   }
   playerTick.logMessages.forEach((msg) => combatLog.push(msg));
 
-  // Tick status effects for any active monsters
   map.monsters.forEach((mon) => {
     if (mon.hp > 0 && mon.statusEffects && mon.statusEffects.length > 0) {
       const monTick = tickStatusEffects(mon, false);
@@ -640,7 +663,7 @@ export function castSpell(
       return { ...state, floatingText: 'Not enough Mana! (Needs 4 MP)' };
     }
     player.mp -= cost;
-    const healAmount = 14;
+    const healAmount = 16;
     const actualHeal = Math.min(healAmount, player.maxHp - player.hp);
     player.hp = Math.min(player.maxHp, player.hp + healAmount);
     sounds.spell();
@@ -656,14 +679,14 @@ export function castSpell(
     applyStatusEffect(player, {
       type: 'hasted',
       name: 'Hasted',
-      duration: 4,
+      duration: 5,
       potency: 3,
-      description: 'Supernatural agility (+3 ATK and heightened critical chance for 4 turns).',
+      description: 'Supernatural agility (+3 ATK and heightened critical chance for 5 turns).',
     });
     sounds.buff();
     flashEffect = 'heal';
     floatingText = 'Hasted! (+3 ATK & Crit)';
-    combatLog.push('★ Chanted Haste Surge! Infused with blistering speed (+3 ATK & +35% Crit for 4 turns).');
+    combatLog.push('★ Chanted Haste Surge! Infused with blistering speed (+3 ATK & +35% Crit for 5 turns).');
   } else if (spellType === 'weaken') {
     const cost = 3;
     if (player.mp < cost) {
@@ -672,7 +695,7 @@ export function castSpell(
 
     const { dx, dy } = DIRECTION_OFFSETS[player.facing];
     let hitMonster: Monster | null = null;
-    for (let dist = 1; dist <= 3; dist++) {
+    for (let dist = 1; dist <= 4; dist++) {
       const tx = player.x + dx * dist;
       const ty = player.y + dy * dist;
       const m = map.monsters.find((mon) => mon.x === tx && mon.y === ty && mon.hp > 0);
@@ -693,7 +716,7 @@ export function castSpell(
       name: 'Weakened',
       duration: 4,
       potency: 2,
-      description: 'Enfeebled muscles (-2 ATK and reduced defense for 4 turns).',
+      description: 'Enfeebled muscles (-2 ATK for 4 turns).',
     });
     sounds.debuff();
     flashEffect = 'hit';
@@ -707,7 +730,7 @@ export function castSpell(
 
     const { dx, dy } = DIRECTION_OFFSETS[player.facing];
     let hitMonster: Monster | null = null;
-    for (let dist = 1; dist <= 3; dist++) {
+    for (let dist = 1; dist <= 4; dist++) {
       const tx = player.x + dx * dist;
       const ty = player.y + dy * dist;
       const m = map.monsters.find((mon) => mon.x === tx && mon.y === ty && mon.hp > 0);
@@ -725,16 +748,15 @@ export function castSpell(
     player.mp -= cost;
     sounds.spell();
     flashEffect = 'hit';
-    const fireDmg = Math.floor(Math.random() * 5) + 12;
+    const fireDmg = Math.floor(Math.random() * 6) + 14;
     hitMonster.hp -= fireDmg;
 
-    // Apply Burned Status Effect!
     applyStatusEffect(hitMonster, {
       type: 'burned',
       name: 'Burned',
       duration: 3,
       potency: 3,
-      description: 'Engulfed in clinging arcane flames (3 DMG each turn).',
+      description: 'Clinging arcane flames (3 DMG each turn).',
     });
 
     floatingText = `-${fireDmg} Fire DMG + Burned!`;
@@ -751,7 +773,6 @@ export function castSpell(
     }
   }
 
-  // Tick status effects for player
   const playerTick = tickStatusEffects(player, true);
   playerTick.logMessages.forEach((msg) => combatLog.push(msg));
 
@@ -818,10 +839,8 @@ export function useItem(state: GameState, itemId: string): GameState {
     logEvents.push(`Infused with ${item.appliesStatus.name} (${item.appliesStatus.duration} turns).`);
   }
 
-  // Remove consumed consumable
   player.inventory.splice(itemIndex, 1);
 
-  // Tick status effects
   const playerTick = tickStatusEffects(player, true);
   playerTick.logMessages.forEach((msg) => logEvents.push(msg));
 
@@ -845,4 +864,3 @@ export function useItem(state: GameState, itemId: string): GameState {
     flashEffect: 'heal',
   };
 }
-

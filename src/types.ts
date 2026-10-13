@@ -78,6 +78,8 @@ export interface Player {
   maxHp: number;
   mp: number;
   maxMp: number;
+  stamina: number;
+  maxStamina: number;
   level: number;
   xp: number;
   nextXp: number;
@@ -105,13 +107,18 @@ export interface TurnLog {
   actionTaken: string;
   viewportAscii: string[];
   miniMapAscii: string[];
-  depthGrid?: number[][]; // 8 rows of depth levels (0: frame, 1: close, 2: mid, 3: far, 4: horizon/dark)
+  depthGrid?: number[][]; // 12 rows of depth levels
   heading: string;
   hudInfo: {
     hp: number;
     maxHp: number;
     mp: number;
     maxMp: number;
+    stamina: number;
+    maxStamina: number;
+    mainHand: string;
+    offHand: string;
+    armor: string;
     weapon: string;
     shieldArmor: string;
     x: number;
