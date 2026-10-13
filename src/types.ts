@@ -105,6 +105,7 @@ export interface TurnLog {
   actionTaken: string;
   viewportAscii: string[];
   miniMapAscii: string[];
+  depthGrid?: number[][]; // 8 rows of depth levels (0: frame, 1: close, 2: mid, 3: far, 4: horizon/dark)
   heading: string;
   hudInfo: {
     hp: number;

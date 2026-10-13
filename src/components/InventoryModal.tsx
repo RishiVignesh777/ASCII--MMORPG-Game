@@ -171,23 +171,26 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({
             <div className="space-y-3">
               <div className="p-3 rounded-lg bg-zinc-950/70 border border-zinc-800 space-y-2">
                 <h4 className="font-bold text-amber-300 flex items-center gap-1.5">
-                  <BookOpen className="w-3.5 h-3.5" /> 3D Depth Shading Rules
+                  <BookOpen className="w-3.5 h-3.5" /> 3D Depth Shading & FOV Contrast Ramp
                 </h4>
                 <ul className="space-y-1 text-zinc-400 text-[11px]">
                   <li>
-                    <code className="text-amber-400 font-bold">█ / #</code> : Close Wall (Distance 1 - Solid Barrier)
+                    <code className="text-amber-400 font-bold">█ / #</code> : Close Wall (Distance 1 - High Contrast, 100% Torchlight)
                   </li>
                   <li>
-                    <code className="text-amber-400 font-bold">▒ / =</code> : Mid Wall (Distance 2 - Mid Corridor Depth)
+                    <code className="text-amber-400 font-bold">▒ / =</code> : Mid Wall (Distance 2 - Medium Contrast, 75% Torchlight)
                   </li>
                   <li>
-                    <code className="text-amber-400 font-bold">░ / -</code> : Far Wall (Distance 3 - Distant Barrier)
+                    <code className="text-amber-400 font-bold">░ / -</code> : Far Wall (Distance 3 - Low Contrast, 45% Dim Ambient)
                   </li>
                   <li>
-                    <code className="text-amber-400 font-bold">/ \ . :</code> : Perspective ceiling/floor gridlines
+                    <code className="text-amber-400 font-bold">· / :</code> : Distant Horizon / Floor Gridlines (Distance 4+, 25% Faint)
                   </li>
                   <li>
-                    <code className="text-amber-400 font-bold">[ . ]</code> : Straight corridor vanishing point
+                    <code className="text-amber-400 font-bold">{'[ \\M/ ] / [ {m} ] / [ ·m· ]'}</code> : Hostiles scaled and dimmed across Distances 1, 2, 3
+                  </li>
+                  <li>
+                    <code className="text-amber-400 font-bold"># / = / - / ·</code> : Mini-Map FOV lighting attenuation from torch center
                   </li>
                 </ul>
               </div>

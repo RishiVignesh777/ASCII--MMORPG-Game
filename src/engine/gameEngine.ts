@@ -186,6 +186,7 @@ export function buildTurnLog(
     actionTaken,
     viewportAscii: view.viewportLines,
     miniMapAscii: view.miniMapLines,
+    depthGrid: view.depthGrid,
     heading: view.facingName,
     hudInfo: {
       hp: player.hp,
