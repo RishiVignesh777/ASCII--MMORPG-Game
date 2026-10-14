@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   ArrowUp,
   ArrowLeft,
@@ -11,16 +11,26 @@ import {
   Volume2,
   VolumeX,
   Zap,
-  ShieldOff,
-  MoveHorizontal,
+  BookOpen,
+  Wrench,
+  Shield,
+  Store,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
-import { TurnLog } from '../types';
+import { ClassSkill, TurnLog } from '../types';
+import { sounds } from '../engine/sound';
 
 interface ActionControlsProps {
   currentTurn: TurnLog;
+  skills: ClassSkill[];
   onAction: (index: number) => void;
-  onCastSpell: (type: 'firebolt' | 'heal' | 'haste' | 'weaken') => void;
+  onCastSkill: (skillId: string) => void;
+  onLightTorch: () => void;
+  onRepairWeapon: () => void;
+  onUsePotion: () => void;
   onOpenInventory: () => void;
+  onOpenMerchant: () => void;
   isMuted: boolean;
   onToggleMute: () => void;
   isGameOver: boolean;
@@ -28,13 +38,21 @@ interface ActionControlsProps {
 
 export const ActionControls: React.FC<ActionControlsProps> = ({
   currentTurn,
+  skills,
   onAction,
-  onCastSpell,
+  onCastSkill,
+  onLightTorch,
+  onRepairWeapon,
+  onUsePotion,
   onOpenInventory,
+  onOpenMerchant,
   isMuted,
   onToggleMute,
   isGameOver,
 }) => {
+  const [spellbookOpen, setSpellbookOpen] = useState(false);
+  const [itemMenuOpen, setItemMenuOpen] = useState(false);
+
   const actions = currentTurn.actions;
 
   // Keyboard shortcut listener
@@ -54,30 +72,25 @@ export const ActionControls: React.FC<ActionControlsProps> = ({
       } else if (key === '2' || key === 'a' || key === 'arrowleft') {
         e.preventDefault();
         onAction(2);
-      } else if (key === '3' || key === 'd' || key === 'arrowright') {
+      } else if (key === '3' || key === ' ') {
         e.preventDefault();
-        onAction(3);
-      } else if (key === '4' || key === 's' || key === 'arrowdown') {
+        onAction(3); // Basic Attack
+      } else if (key === '4' || key === 'f') {
         e.preventDefault();
-        onAction(4);
-      } else if (key === '5' || key === 'c') {
+        if (skills[0]) onCastSkill(skills[0].id);
+        else onAction(4);
+      } else if (key === '5' || key === 'r') {
         e.preventDefault();
-        onAction(5);
-      } else if (key === '6' || key === 'e' || key === ' ') {
+        onAction(5); // Use Item
+      } else if (key === '6' || key === 'e') {
         e.preventDefault();
-        onAction(6);
-      } else if (key === 'q' || key === 'f') {
+        onAction(6); // Environment Action
+      } else if (key === 't') {
         e.preventDefault();
-        onCastSpell('firebolt');
-      } else if (key === 'h' || key === 'r') {
+        onLightTorch();
+      } else if (key === 'p') {
         e.preventDefault();
-        onCastSpell('heal');
-      } else if (key === 'z') {
-        e.preventDefault();
-        onCastSpell('haste');
-      } else if (key === 'x') {
-        e.preventDefault();
-        onCastSpell('weaken');
+        onUsePotion();
       } else if (key === 'i' || key === 'b') {
         e.preventDefault();
         onOpenInventory();
@@ -89,144 +102,211 @@ export const ActionControls: React.FC<ActionControlsProps> = ({
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [onAction, onCastSpell, onOpenInventory, onToggleMute, isGameOver]);
-
-  const actionIcons = [
-    <ArrowUp className="w-4 h-4 text-emerald-400" key="1" />,
-    <ArrowLeft className="w-4 h-4 text-sky-400" key="2" />,
-    <ArrowRight className="w-4 h-4 text-sky-400" key="3" />,
-    <ArrowDown className="w-4 h-4 text-amber-400" key="4" />,
-    <MoveHorizontal className="w-4 h-4 text-indigo-400" key="5" />,
-    <Crosshair className="w-4 h-4 text-rose-400" key="6" />,
-  ];
-
-  const actionKeys = ['[1] / W', '[2] / A', '[3] / D', '[4] / S', '[5] / C', '[6] / E'];
+  }, [
+    onAction,
+    onCastSkill,
+    onLightTorch,
+    onUsePotion,
+    onOpenInventory,
+    onToggleMute,
+    isGameOver,
+    skills,
+  ]);
 
   return (
     <div className="flex flex-col gap-3 font-mono">
-      {/* 4. FIRST-PERSON ACTIONS CARD */}
+      {/* 4. EXPANDED ACTION MENU CARD */}
       <div className="rounded-xl border border-zinc-800 bg-zinc-900/80 p-4 shadow-xl backdrop-blur-md">
-        <div className="flex items-center justify-between pb-2 mb-3 border-b border-zinc-800/80">
+        <div className="flex flex-wrap items-center justify-between pb-2 mb-3 border-b border-zinc-800/80 gap-2">
           <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-amber-400">
             <Crosshair className="w-4 h-4 text-amber-400" />
-            <span>4. FIRST-PERSON ACTIONS</span>
+            <span>4. EXPANDED ACTION MENU</span>
           </div>
 
           <div className="flex items-center gap-2">
             <button
               onClick={onToggleMute}
               className="flex items-center gap-1 px-2 py-1 rounded bg-zinc-800/60 hover:bg-zinc-700/80 text-zinc-400 hover:text-zinc-200 text-xs transition cursor-pointer"
-              title="Toggle retro audio sound effects (M)"
+              title="Toggle audio effects (M)"
             >
-              {isMuted ? <VolumeX className="w-3.5 h-3.5 text-zinc-500" /> : <Volume2 className="w-3.5 h-3.5 text-amber-400" />}
-              <span className="hidden sm:inline text-[11px]">{isMuted ? 'Muted' : 'Audio ON'}</span>
+              {isMuted ? (
+                <VolumeX className="w-3.5 h-3.5 text-zinc-500" />
+              ) : (
+                <Volume2 className="w-3.5 h-3.5 text-amber-400" />
+              )}
+              <span className="hidden sm:inline text-[11px]">{isMuted ? 'Muted' : 'Sound'}</span>
             </button>
 
             <button
               onClick={onOpenInventory}
-              className="flex items-center gap-1 px-2 py-1 rounded bg-zinc-800/60 hover:bg-zinc-700/80 text-zinc-300 hover:text-amber-300 text-xs transition cursor-pointer"
-              title="Open Inventory (I)"
+              className="flex items-center gap-1 px-2.5 py-1 rounded bg-zinc-800/60 hover:bg-zinc-700/80 text-zinc-300 hover:text-amber-300 text-xs transition cursor-pointer border border-zinc-700/50"
+              title="Open Inventory Backpack (I)"
             >
               <Package className="w-3.5 h-3.5 text-amber-400" />
-              <span className="text-[11px]">Bag [I]</span>
+              <span className="text-[11px]">Backpack [I]</span>
             </button>
           </div>
         </div>
 
-        {/* The 6 Numbered Action Buttons */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+        {/* 6 NUMBERED EXPANDED ACTION BUTTONS */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
           {actions.map((actName, idx) => {
             const actionNumber = idx + 1;
-            const isContextAction = actionNumber === 6;
+            const isAttack = actionNumber === 3;
+            const isSpell = actionNumber === 4;
+            const isItem = actionNumber === 5;
+            const isEnv = actionNumber === 6;
 
             return (
               <button
                 key={actionNumber}
-                onClick={() => onAction(actionNumber)}
+                onClick={() => {
+                  if (isSpell) {
+                    setSpellbookOpen(!spellbookOpen);
+                  } else if (isItem) {
+                    setItemMenuOpen(!itemMenuOpen);
+                  } else {
+                    onAction(actionNumber);
+                  }
+                }}
                 disabled={isGameOver}
-                className={`group flex items-center justify-between p-3 rounded-lg border text-left transition-all duration-150 cursor-pointer ${
-                  isContextAction
-                    ? 'sm:col-span-2 lg:col-span-1 bg-gradient-to-r from-amber-950/40 to-rose-950/40 border-amber-500/50 hover:border-amber-400 hover:from-amber-900/50 hover:to-rose-900/50 shadow-md'
-                    : 'bg-zinc-950/60 border-zinc-800/80 hover:border-zinc-700 hover:bg-zinc-800/50'
-                }`}
+                className={`flex items-center justify-between p-3 rounded-lg border text-left transition-all duration-150 cursor-pointer text-xs font-semibold group ${
+                  isAttack
+                    ? 'bg-red-950/40 hover:bg-red-900/60 border-red-800/60 text-red-200 hover:border-red-600'
+                    : isSpell
+                    ? 'bg-blue-950/40 hover:bg-blue-900/60 border-blue-800/60 text-blue-200 hover:border-blue-600'
+                    : isItem
+                    ? 'bg-amber-950/40 hover:bg-amber-900/60 border-amber-800/60 text-amber-200 hover:border-amber-600'
+                    : isEnv
+                    ? 'bg-emerald-950/40 hover:bg-emerald-900/60 border-emerald-800/60 text-emerald-200 hover:border-emerald-600'
+                    : 'bg-zinc-950/70 hover:bg-zinc-800/90 border-zinc-800 hover:border-zinc-700 text-zinc-200'
+                } ${isGameOver ? 'opacity-50 cursor-not-allowed' : ''}`}
               >
-                <div className="flex items-center gap-2.5 truncate">
-                  <span className="w-6 h-6 rounded flex items-center justify-center bg-zinc-900 border border-zinc-700/60 text-xs font-bold text-amber-300 shrink-0">
+                <div className="flex items-center gap-2">
+                  <span className="w-5 h-5 rounded flex items-center justify-center bg-zinc-900 text-zinc-400 text-[11px] font-bold border border-zinc-800 group-hover:text-amber-400 group-hover:border-amber-500/50">
                     {actionNumber}
                   </span>
-                  <div className="shrink-0">{actionIcons[idx] ?? <Crosshair className="w-4 h-4" />}</div>
-                  <span
-                    className={`text-xs font-medium truncate ${
-                      isContextAction
-                        ? 'text-amber-200 group-hover:text-amber-100 font-semibold'
-                        : 'text-zinc-200 group-hover:text-white'
-                    }`}
-                  >
-                    {actName}
-                  </span>
+                  <span className="truncate">{actName}</span>
                 </div>
 
-                <span className="text-[10px] font-mono text-zinc-500 group-hover:text-zinc-400 shrink-0 ml-2">
-                  {actionKeys[idx]}
-                </span>
+                <div className="text-[10px] text-zinc-500 font-mono pl-1 shrink-0">
+                  {actionNumber === 1 && '[W]'}
+                  {actionNumber === 2 && '[A/D]'}
+                  {actionNumber === 3 && '[Space]'}
+                  {actionNumber === 4 && (spellbookOpen ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />)}
+                  {actionNumber === 5 && (itemMenuOpen ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />)}
+                  {actionNumber === 6 && '[E]'}
+                </div>
               </button>
             );
           })}
         </div>
 
-        {/* Auxiliary Magic Spells Row */}
-        <div className="mt-3 pt-3 border-t border-zinc-800/60 flex flex-wrap items-center justify-between gap-2">
-          <div className="flex items-center gap-2 text-xs text-zinc-400">
-            <span className="text-[11px] text-zinc-500">Quick Spells:</span>
-            <button
-              onClick={() => onCastSpell('firebolt')}
-              disabled={isGameOver || currentTurn.hudInfo.mp < 5}
-              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-orange-950/50 border border-orange-700/50 hover:border-orange-500 text-orange-200 text-xs font-medium transition cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
-              title="Hurls a flaming orb that deals 14-20 DMG & Burns enemy for 3 turns (5 MP)"
-            >
-              <Flame className="w-3.5 h-3.5 text-orange-400" />
-              <span>Firebolt (5 MP)</span>
-              <kbd className="text-[10px] text-orange-400/80 bg-orange-900/50 px-1 rounded">Q</kbd>
-            </button>
+        {/* ACTIVE SPELLBOOK DRAWER (When Option 4 is opened or clicked) */}
+        {spellbookOpen && (
+          <div className="mt-3 p-3 rounded-lg bg-zinc-950 border border-blue-900/60 flex flex-col gap-2">
+            <div className="flex items-center justify-between text-xs font-semibold text-blue-400 border-b border-zinc-800 pb-1.5">
+              <span className="flex items-center gap-1.5">
+                <BookOpen className="w-3.5 h-3.5" />
+                Select Class Skill / Spell to Cast:
+              </span>
+              <span className="text-[10px] text-zinc-500">Available MP: {currentTurn.extendedHud.mp}</span>
+            </div>
 
-            <button
-              onClick={() => onCastSpell('heal')}
-              disabled={isGameOver || currentTurn.hudInfo.mp < 4}
-              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-emerald-950/50 border border-emerald-700/50 hover:border-emerald-500 text-emerald-200 text-xs font-medium transition cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
-              title="Restores 16 HP through divine light (4 MP)"
-            >
-              <HeartPulse className="w-3.5 h-3.5 text-emerald-400" />
-              <span>Heal (4 MP)</span>
-              <kbd className="text-[10px] text-emerald-400/80 bg-emerald-900/50 px-1 rounded">H</kbd>
-            </button>
-
-            <button
-              onClick={() => onCastSpell('haste')}
-              disabled={isGameOver || currentTurn.hudInfo.mp < 4}
-              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-amber-950/50 border border-amber-700/50 hover:border-amber-500 text-amber-200 text-xs font-medium transition cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
-              title="Grants Hasted status: +3 ATK & +35% Crit for 5 turns (4 MP)"
-            >
-              <Zap className="w-3.5 h-3.5 text-amber-400" />
-              <span>Haste (4 MP)</span>
-              <kbd className="text-[10px] text-amber-400/80 bg-amber-900/50 px-1 rounded">Z</kbd>
-            </button>
-
-            <button
-              onClick={() => onCastSpell('weaken')}
-              disabled={isGameOver || currentTurn.hudInfo.mp < 3}
-              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-purple-950/50 border border-purple-700/50 hover:border-purple-500 text-purple-200 text-xs font-medium transition cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
-              title="Curses enemy with Weakened status: -2 ATK for 4 turns (3 MP)"
-            >
-              <ShieldOff className="w-3.5 h-3.5 text-purple-400" />
-              <span>Weaken (3 MP)</span>
-              <kbd className="text-[10px] text-purple-400/80 bg-purple-900/50 px-1 rounded">X</kbd>
-            </button>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+              {skills.map((skill) => (
+                <button
+                  key={skill.id}
+                  onClick={() => {
+                    onCastSkill(skill.id);
+                    setSpellbookOpen(false);
+                  }}
+                  disabled={currentTurn.extendedHud.mp < skill.mpCost}
+                  className={`flex flex-col p-2.5 rounded-lg border text-left transition cursor-pointer text-xs ${
+                    currentTurn.extendedHud.mp >= skill.mpCost
+                      ? 'bg-blue-950/40 hover:bg-blue-900/60 border-blue-800/70 text-blue-200'
+                      : 'bg-zinc-900/40 border-zinc-800 text-zinc-500 cursor-not-allowed opacity-60'
+                  }`}
+                >
+                  <div className="flex items-center justify-between font-bold">
+                    <span>{skill.name}</span>
+                    <span className="text-[10px] px-1.5 py-0.2 rounded bg-blue-900/50 text-blue-300 font-mono">
+                      {skill.mpCost} MP
+                    </span>
+                  </div>
+                  <p className="text-[10px] text-zinc-400 mt-1 line-clamp-2">{skill.description}</p>
+                </button>
+              ))}
+            </div>
           </div>
+        )}
 
-          <div className="text-[11px] text-zinc-500 italic">
-            Controls: [1-6], WASD, Arrows, C (Strafe), Space, Q/H/Z/X
+        {/* QUICK ITEM USE MENU (When Option 5 is opened or clicked) */}
+        {itemMenuOpen && (
+          <div className="mt-3 p-3 rounded-lg bg-zinc-950 border border-amber-900/60 flex flex-col gap-2">
+            <div className="flex items-center justify-between text-xs font-semibold text-amber-400 border-b border-zinc-800 pb-1.5">
+              <span className="flex items-center gap-1.5">
+                <Package className="w-3.5 h-3.5" />
+                Select Item to Use:
+              </span>
+              <span className="text-[10px] text-zinc-500">Hotkeys: [P] Potion • [T] Torch</span>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
+              {/* Drink Potion */}
+              <button
+                onClick={() => {
+                  onUsePotion();
+                  setItemMenuOpen(false);
+                }}
+                disabled={currentTurn.extendedHud.potionsCount <= 0}
+                className="flex items-center gap-2 p-2.5 rounded-lg bg-red-950/40 hover:bg-red-900/60 border border-red-800/60 text-red-200 transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <HeartPulse className="w-4 h-4 text-red-400" />
+                <div className="flex flex-col text-left">
+                  <span className="font-bold">Drink Health Potion</span>
+                  <span className="text-[10px] text-zinc-400">
+                    {currentTurn.extendedHud.potionsCount} remaining (+20 HP)
+                  </span>
+                </div>
+              </button>
+
+              {/* Light Torch */}
+              <button
+                onClick={() => {
+                  onLightTorch();
+                  setItemMenuOpen(false);
+                }}
+                className="flex items-center gap-2 p-2.5 rounded-lg bg-amber-950/40 hover:bg-amber-900/60 border border-amber-800/60 text-amber-200 transition cursor-pointer"
+              >
+                <Flame className="w-4 h-4 text-amber-400" />
+                <div className="flex flex-col text-left">
+                  <span className="font-bold">Light New Torch</span>
+                  <span className="text-[10px] text-zinc-400">
+                    Fuel: {currentTurn.extendedHud.torchFuel}/5 (Torches: {currentTurn.extendedHud.torchesCount})
+                  </span>
+                </div>
+              </button>
+
+              {/* Repair Weapon */}
+              <button
+                onClick={() => {
+                  onRepairWeapon();
+                  setItemMenuOpen(false);
+                }}
+                className="flex items-center gap-2 p-2.5 rounded-lg bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-zinc-200 transition cursor-pointer"
+              >
+                <Wrench className="w-4 h-4 text-amber-400" />
+                <div className="flex flex-col text-left">
+                  <span className="font-bold">Repair Weapon</span>
+                  <span className="text-[10px] text-zinc-400">
+                    Dura: {currentTurn.extendedHud.weaponDura}/{currentTurn.extendedHud.maxWeaponDura}
+                  </span>
+                </div>
+              </button>
+            </div>
           </div>
-        </div>
+        )}
       </div>
     </div>
   );

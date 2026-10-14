@@ -29,6 +29,7 @@ export type TileType =
   | 'stairs_down'
   | 'chest'
   | 'fountain'
+  | 'merchant'
   | 'trap';
 
 export type StatusEffectType = 'poisoned' | 'weakened' | 'hasted' | 'burned' | 'shielded';
@@ -39,6 +40,18 @@ export interface StatusEffect {
   duration: number; // turns remaining
   potency: number; // damage per turn or stat modifier
   description: string;
+}
+
+export type PlayerClass = 'Fighter' | 'Mage' | 'Rogue';
+
+export interface ClassSkill {
+  id: string;
+  name: string;
+  mpCost: number;
+  description: string;
+  type: 'attack' | 'spell' | 'buff' | 'debuff' | 'heal';
+  damageMultiplier?: number;
+  bonusEffect?: StatusEffect;
 }
 
 export interface Monster {
@@ -53,24 +66,29 @@ export interface Monster {
   defense: number;
   xpReward: number;
   description: string;
+  isBoss?: boolean;
   statusEffects?: StatusEffect[];
 }
 
 export interface Item {
   id: string;
   name: string;
-  type: 'weapon' | 'armor' | 'potion' | 'key' | 'scroll';
+  type: 'weapon' | 'armor' | 'potion' | 'key' | 'scroll' | 'torch' | 'repair_kit';
   value: number;
   description: string;
   bonusAtk?: number;
   bonusDef?: number;
   healHp?: number;
   healMp?: number;
+  durability?: number;
+  maxDurability?: number;
   curesStatus?: StatusEffectType[];
   appliesStatus?: StatusEffect;
 }
 
 export interface Player {
+  characterClass: PlayerClass;
+  classChosen: boolean;
   x: number;
   y: number;
   facing: Direction;
@@ -80,6 +98,13 @@ export interface Player {
   maxMp: number;
   stamina: number;
   maxStamina: number;
+  torchFuel: number; // 0 to 5
+  maxTorchFuel: number; // 5
+  torchTurnCounter: number; // decreases fuel every 5 movement turns
+  torchesCount: number;
+  weaponDurability: number;
+  maxWeaponDurability: number;
+  skills: ClassSkill[];
   level: number;
   xp: number;
   nextXp: number;
@@ -102,6 +127,34 @@ export interface DungeonMap {
   explored: boolean[][];
 }
 
+export type VisualFxType = 'melee_hit' | 'fireball' | 'frost' | 'damage_taken' | 'none';
+
+export interface ExtendedHudData {
+  characterClass: PlayerClass;
+  level: number;
+  xp: number;
+  nextXp: number;
+  hp: number;
+  maxHp: number;
+  mp: number;
+  maxMp: number;
+  torchFuel: number;
+  maxTorchFuel: number;
+  mainHand: string;
+  weaponDura: number;
+  maxWeaponDura: number;
+  armor: string;
+  activeSpells: string;
+  potionsCount: number;
+  torchesCount: number;
+  keysCount: number;
+  gold: number;
+  x: number;
+  y: number;
+  floor: number;
+  statusEffects: StatusEffect[];
+}
+
 export interface TurnLog {
   turn: number;
   actionTaken: string;
@@ -109,23 +162,8 @@ export interface TurnLog {
   miniMapAscii: string[];
   depthGrid?: number[][]; // 12 rows of depth levels
   heading: string;
-  hudInfo: {
-    hp: number;
-    maxHp: number;
-    mp: number;
-    maxMp: number;
-    stamina: number;
-    maxStamina: number;
-    mainHand: string;
-    offHand: string;
-    armor: string;
-    weapon: string;
-    shieldArmor: string;
-    x: number;
-    y: number;
-    floor: number;
-    statusEffects: StatusEffect[];
-  };
+  activeVisualFx?: VisualFxType;
+  extendedHud: ExtendedHudData;
   viewportDescription: string;
   actions: string[];
   combatLog?: string[];

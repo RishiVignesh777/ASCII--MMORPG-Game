@@ -1,17 +1,27 @@
 import {
+  ClassSkill,
   Direction,
   DIRECTION_NAMES,
   DIRECTION_OFFSETS,
   DungeonMap,
+  ExtendedHudData,
   Item,
   Monster,
   Player,
+  PlayerClass,
   StatusEffect,
   StatusEffectType,
   TileType,
   TurnLog,
+  VisualFxType,
 } from '../types';
-import { getDungeonFloor, INITIAL_PLAYER } from './dungeonData';
+import {
+  CLASS_LOADOUTS,
+  CLASS_SKILLS,
+  getDungeonFloor,
+  getInitialPlayerForClass,
+  INITIAL_PLAYER,
+} from './dungeonData';
 import { renderFirstPersonView } from './renderer';
 import { sounds } from './sound';
 
@@ -26,9 +36,11 @@ export interface GameState {
   isVictory: boolean;
   floatingText: string | null;
   flashEffect: 'hit' | 'damage' | 'heal' | 'door' | null;
+  isMerchantOpen: boolean;
+  selectedSkillId: string | null;
 }
 
-// Helper to apply or refresh a status effect
+// Helper to apply or refresh status effects
 export function applyStatusEffect(
   target: { statusEffects?: StatusEffect[] },
   newEffect: StatusEffect
@@ -81,31 +93,25 @@ function tickStatusEffects(
       const dmg = effect.potency || 2;
       entity.hp = Math.max(0, entity.hp - dmg);
       dotDamage += dmg;
-      if (isPlayer) {
-        logMessages.push(`☠ You suffered ${dmg} Poison damage!`);
-      } else {
-        logMessages.push(`☠ ${entityName} suffered ${dmg} Poison damage!`);
-      }
+      logMessages.push(
+        isPlayer ? `☠ You suffered ${dmg} Poison damage!` : `☠ ${entityName} suffered ${dmg} Poison damage!`
+      );
     } else if (effect.type === 'burned') {
       const dmg = effect.potency || 3;
       entity.hp = Math.max(0, entity.hp - dmg);
       dotDamage += dmg;
-      if (isPlayer) {
-        logMessages.push(`🔥 You suffered ${dmg} Burn damage!`);
-      } else {
-        logMessages.push(`🔥 ${entityName} suffered ${dmg} Burn damage!`);
-      }
+      logMessages.push(
+        isPlayer ? `🔥 You suffered ${dmg} Burn damage!` : `🔥 ${entityName} suffered ${dmg} Burn damage!`
+      );
     }
 
     effect.duration -= 1;
     if (effect.duration > 0) {
       remainingEffects.push(effect);
     } else {
-      if (isPlayer) {
-        logMessages.push(`⌛ Your ${effect.name} status has worn off.`);
-      } else {
-        logMessages.push(`⌛ ${entityName}'s ${effect.name} status has worn off.`);
-      }
+      logMessages.push(
+        isPlayer ? `⌛ Your ${effect.name} status has worn off.` : `⌛ ${entityName}'s ${effect.name} status has worn off.`
+      );
     }
   }
 
@@ -117,14 +123,14 @@ export function createInitialGame(): GameState {
   const currentFloor = 1;
   const dungeonMap = getDungeonFloor(currentFloor);
   const player: Player = JSON.parse(JSON.stringify(INITIAL_PLAYER));
-  if (!player.statusEffects) player.statusEffects = [];
 
   const turnLog = buildTurnLog(
     player,
     dungeonMap,
     currentFloor,
     1,
-    'Expansive 30x30 Dungeon entered. Standing before a heavy door.'
+    'Initialized Floor 1 in front of a heavy wooden door. Choose your Class.',
+    'none'
   );
 
   return {
@@ -136,8 +142,10 @@ export function createInitialGame(): GameState {
     currentTurn: turnLog,
     isGameOver: false,
     isVictory: false,
-    floatingText: null,
+    floatingText: 'Select your Class to begin your adventure!',
     flashEffect: null,
+    isMerchantOpen: false,
+    selectedSkillId: null,
   };
 }
 
@@ -147,34 +155,73 @@ export function buildTurnLog(
   floor: number,
   turn: number,
   actionTaken: string,
+  visualFx: VisualFxType = 'none',
   combatEvents?: string[],
   lootNotice?: string
 ): TurnLog {
-  const view = renderFirstPersonView(player, map, floor);
+  const view = renderFirstPersonView(player, map, floor, visualFx);
+
+  // Active spells text format for Extended HUD
+  const spellsList = (player.skills || [])
+    .map((s) => `${s.name} (${s.mpCost} MP)`)
+    .join(', ');
+
+  const potionsCount = player.inventory.filter((i) => i.type === 'potion').length;
+  const keysCount = player.keys;
 
   const weaponBonus = player.weapon.bonusAtk ? ` (+${player.weapon.bonusAtk} ATK)` : '';
   const armorBonus = player.shieldArmor.bonusDef ? ` (+${player.shieldArmor.bonusDef} DEF)` : '';
 
-  // Determine dynamic 6th action option
-  let action6 = 'Search floor for secrets';
-  if (view.monsterInFront) {
-    action6 = `Attack ${view.monsterInFront.name} in view`;
+  const extendedHud: ExtendedHudData = {
+    characterClass: player.characterClass,
+    level: player.level,
+    xp: player.xp,
+    nextXp: player.nextXp,
+    hp: player.hp,
+    maxHp: player.maxHp,
+    mp: player.mp,
+    maxMp: player.maxMp,
+    torchFuel: player.torchFuel,
+    maxTorchFuel: player.maxTorchFuel,
+    mainHand: `${player.weapon.name}${weaponBonus}`,
+    weaponDura: player.weaponDurability,
+    maxWeaponDura: player.maxWeaponDurability,
+    armor: `${player.shieldArmor.name}${armorBonus}`,
+    activeSpells: spellsList || 'None',
+    potionsCount,
+    torchesCount: player.torchesCount,
+    keysCount,
+    gold: player.gold,
+    x: player.x,
+    y: player.y,
+    floor,
+    statusEffects: player.statusEffects || [],
+  };
+
+  // 6 EXPANDED ACTION MENU OPTIONS:
+  let action6 = 'Environment Action (Inspect stone floor)';
+  if (view.objectInFront === 'merchant') {
+    action6 = 'Environment Action (Talk to Shopkeeper)';
+  } else if (view.monsterInFront) {
+    action6 = `Environment Action (Examine ${view.monsterInFront.name})`;
   } else if (view.objectInFront === 'door_closed') {
-    action6 = 'Open heavy door in view';
+    action6 = 'Environment Action (Open heavy door [ | + | ])';
   } else if (view.objectInFront === 'chest') {
-    action6 = 'Open treasure chest in view';
+    action6 = 'Environment Action (Open treasure chest [ ( $ ) ])';
   } else if (view.objectInFront === 'fountain') {
-    action6 = 'Drink from holy fountain in view';
+    action6 = 'Environment Action (Drink from celestial fountain)';
   } else if (view.objectInFront === 'stairs_down') {
-    action6 = `Descend stairs to Floor ${floor + 1}`;
+    action6 = `Environment Action (Descend stairs to Floor ${floor + 1})`;
   }
 
   const actions = [
-    'Step Forward',
-    'Turn Left (90°)',
-    'Turn Right (90°)',
-    'Step Back / Turn 180°',
-    'Strafe Left / Right',
+    'Move Forward / Step Back',
+    'Turn Left (90°) / Turn Right (90°)',
+    view.monsterInFront
+      ? `Basic Attack / Melee Strike (${view.monsterInFront.name})`
+      : 'Basic Attack / Melee Strike (Swing into air)',
+    `Cast Spell / Use Class Skill (${player.skills[0]?.name || 'Spellbook'})`,
+    `Use Item (Potion, Light Torch [${player.torchFuel}/5], Repair)`,
     action6,
   ];
 
@@ -192,23 +239,8 @@ export function buildTurnLog(
     miniMapAscii: view.miniMapLines,
     depthGrid: view.depthGrid,
     heading: view.facingName,
-    hudInfo: {
-      hp: player.hp,
-      maxHp: player.maxHp,
-      mp: player.mp,
-      maxMp: player.maxMp,
-      stamina: player.stamina,
-      maxStamina: player.maxStamina,
-      mainHand: `${player.weapon.name}${weaponBonus}`,
-      offHand: 'Oak Buckler (+1 DEF)',
-      armor: `${player.shieldArmor.name}${armorBonus}`,
-      weapon: `${player.weapon.name}${weaponBonus}`,
-      shieldArmor: `${player.shieldArmor.name}${armorBonus}`,
-      x: player.x,
-      y: player.y,
-      floor,
-      statusEffects: player.statusEffects || [],
-    },
+    activeVisualFx: visualFx,
+    extendedHud,
     viewportDescription: view.description,
     actions,
     combatLog: combatEvents,
@@ -217,9 +249,8 @@ export function buildTurnLog(
   };
 }
 
-// Format the Turn into the exact 4-section format specified by the user prompt
+// FORMAT THE TURN EXACTLY INTO THE 4 REQUIRED SECTIONS
 export function formatTurnResponse(log: TurnLog): string {
-  // Combine Viewport & Mini-map side by side (12 lines)
   const combinedLines: string[] = [];
   for (let i = 0; i < 12; i++) {
     const vp = log.viewportAscii[i] || '+------------------------------+';
@@ -241,32 +272,337 @@ export function formatTurnResponse(log: TurnLog): string {
     lootSection = `\nLOOT:\n* ${log.lootNotification}\n`;
   }
 
-  return `1. WIDESCREEN 3D VIEWPORT & EXPANDED MINI-MAP:
+  const hud = log.extendedHud;
+
+  return `1. WIDESCREEN 3D VIEWPORT & MINI-MAP:
 \`\`\`
 ${combinedLines.join('\n')}
 \`\`\`
 
-2. COMPASS & HUD:
-- Orientation: ${log.heading}
-- Stats: HP: ${log.hudInfo.hp}/${log.hudInfo.maxHp} | MP: ${log.hudInfo.mp}/${log.hudInfo.maxMp} | Stamina: ${log.hudInfo.stamina}/${log.hudInfo.maxStamina}
-- Equipment: Main-Hand: ${log.hudInfo.mainHand} | Off-Hand: ${log.hudInfo.offHand} | Armor: ${log.hudInfo.armor}
-- Map Position: Grid (X: ${log.hudInfo.x}, Y: ${log.hudInfo.y}) | Dungeon Floor: ${log.hudInfo.floor}
-${combatSection}${lootSection}
-3. VIEWPORT DESCRIPTION:
+2. EXTENDED HUD & CLASS SPELLBOOK:
+- Class: ${hud.characterClass} | Level: ${hud.level} (XP: ${hud.xp}/${hud.nextXp})
+- Vitals: HP: ${hud.hp}/${hud.maxHp} | MP: ${hud.mp}/${hud.maxMp} | Torch Fuel: ${hud.torchFuel}/${hud.maxTorchFuel}
+- Equipment: Main-Hand: ${hud.mainHand} (Dura: ${hud.weaponDura}/${hud.maxWeaponDura}) | Armor: ${hud.armor}
+- Active Spells/Skills: ${hud.activeSpells}
+- Inventory: Potions: ${hud.potionsCount} | Torches: ${hud.torchesCount} | Keys: ${hud.keysCount} | Gold: ${hud.gold}${combatSection}${lootSection}
+3. VIEWPORT LOG & COMBAT TEXT:
 ${log.viewportDescription}
 
-4. FIRST-PERSON ACTIONS:
+4. EXPANDED ACTION MENU:
 ${actionsList}`;
 }
 
-export function handlePlayerAction(
-  state: GameState,
-  actionIndex: number // 1: Step Forward, 2: Turn Left, 3: Turn Right, 4: Step Back/180, 5: Strafe, 6: Interact
-): GameState {
+// SELECT PLAYER CLASS (Turn 1 mechanic)
+export function selectPlayerClass(state: GameState, chosenClass: PlayerClass): GameState {
+  const newPlayer = getInitialPlayerForClass(chosenClass);
+  sounds.buff();
+
+  const turnLog = buildTurnLog(
+    newPlayer,
+    state.dungeonMap,
+    state.currentFloor,
+    state.turnCount,
+    `Selected Class: ${chosenClass}. Equipping class loadout and spellbook.`,
+    'none',
+    [`Sworn path of the ${chosenClass}! Gained ${newPlayer.skills.map((s) => s.name).join(', ')}.`]
+  );
+
+  return {
+    ...state,
+    player: newPlayer,
+    logs: [turnLog, ...state.logs.slice(1)],
+    currentTurn: turnLog,
+    floatingText: `${chosenClass} Selected!`,
+  };
+}
+
+// LIGHT TORCH
+export function lightTorch(state: GameState): GameState {
+  if (state.player.torchesCount <= 0 && state.player.torchFuel > 0) {
+    return {
+      ...state,
+      floatingText: 'No spare torches in inventory!',
+    };
+  }
+
+  const player = JSON.parse(JSON.stringify(state.player)) as Player;
+  if (player.torchesCount > 0) {
+    player.torchesCount -= 1;
+  }
+  player.torchFuel = player.maxTorchFuel;
+  player.torchTurnCounter = 0;
+
+  sounds.torch();
+
+  const turnLog = buildTurnLog(
+    player,
+    state.dungeonMap,
+    state.currentFloor,
+    state.turnCount + 1,
+    'Lit a fresh tallow torch. Full 30x12 dungeon visibility restored (5/5).',
+    'none',
+    ['🔥 A bright amber flame ignites, pushing back the oppressive subterranean darkness!']
+  );
+
+  return {
+    ...state,
+    player,
+    turnCount: state.turnCount + 1,
+    logs: [turnLog, ...state.logs],
+    currentTurn: turnLog,
+    floatingText: 'Torch Lit (5/5 Fuel)!',
+  };
+}
+
+// REPAIR WEAPON
+export function repairWeapon(state: GameState): GameState {
+  const repairItemIndex = state.player.inventory.findIndex((i) => i.type === 'repair_kit');
+  if (repairItemIndex === -1 && state.player.gold < 12) {
+    return {
+      ...state,
+      floatingText: 'Need a Whetstone or 12 Gold to repair!',
+    };
+  }
+
+  const player = JSON.parse(JSON.stringify(state.player)) as Player;
+  let notice = '';
+
+  if (repairItemIndex !== -1) {
+    player.inventory.splice(repairItemIndex, 1);
+    player.weaponDurability = Math.min(
+      player.maxWeaponDurability,
+      player.weaponDurability + 15
+    );
+    notice = 'Used Whetstone & Repair Kit: Restored +15 weapon durability!';
+  } else {
+    player.gold -= 12;
+    player.weaponDurability = player.maxWeaponDurability;
+    notice = 'Paid 12 gold: Fully polished and restored weapon durability!';
+  }
+
+  sounds.repair();
+
+  const turnLog = buildTurnLog(
+    player,
+    state.dungeonMap,
+    state.currentFloor,
+    state.turnCount + 1,
+    'Repaired Main-Hand weapon with whetstone.',
+    'none',
+    [notice]
+  );
+
+  return {
+    ...state,
+    player,
+    turnCount: state.turnCount + 1,
+    logs: [turnLog, ...state.logs],
+    currentTurn: turnLog,
+    floatingText: `Weapon Repaired (${player.weaponDurability}/${player.maxWeaponDurability})`,
+  };
+}
+
+// USE ITEM (POTION)
+export function usePotion(state: GameState, itemId?: string): GameState {
+  const player = JSON.parse(JSON.stringify(state.player)) as Player;
+  const idx = itemId
+    ? player.inventory.findIndex((i) => i.id === itemId)
+    : player.inventory.findIndex((i) => i.type === 'potion');
+
+  if (idx === -1) {
+    return {
+      ...state,
+      floatingText: 'No potions left in inventory!',
+    };
+  }
+
+  const item = player.inventory[idx];
+  player.inventory.splice(idx, 1);
+
+  const events: string[] = [];
+  if (item.healHp) {
+    const healed = Math.min(item.healHp, player.maxHp - player.hp);
+    player.hp += healed;
+    events.push(`Restored ${healed} HP! (${player.hp}/${player.maxHp})`);
+  }
+  if (item.healMp) {
+    const restored = Math.min(item.healMp, player.maxMp - player.mp);
+    player.mp += restored;
+    events.push(`Restored ${restored} MP! (${player.mp}/${player.maxMp})`);
+  }
+
+  sounds.heal();
+
+  const turnLog = buildTurnLog(
+    player,
+    state.dungeonMap,
+    state.currentFloor,
+    state.turnCount + 1,
+    `Drank ${item.name}.`,
+    'none',
+    events
+  );
+
+  return {
+    ...state,
+    player,
+    turnCount: state.turnCount + 1,
+    logs: [turnLog, ...state.logs],
+    currentTurn: turnLog,
+    flashEffect: 'heal',
+    floatingText: `Drank ${item.name}!`,
+  };
+}
+
+// CAST CLASS SKILL / SPELL
+export function castClassSkill(state: GameState, skillId: string): GameState {
   if (state.isGameOver) return state;
 
   const player = JSON.parse(JSON.stringify(state.player)) as Player;
-  if (!player.statusEffects) player.statusEffects = [];
+  const map = JSON.parse(JSON.stringify(state.dungeonMap)) as DungeonMap;
+  const skill = player.skills.find((s) => s.id === skillId);
+
+  if (!skill) {
+    return { ...state, floatingText: 'Skill not found!' };
+  }
+
+  if (player.mp < skill.mpCost) {
+    sounds.bump();
+    return { ...state, floatingText: `Not enough MP! Needs ${skill.mpCost} MP.` };
+  }
+
+  player.mp -= skill.mpCost;
+
+  const { dx, dy } = DIRECTION_OFFSETS[player.facing];
+  const targetX = player.x + dx;
+  const targetY = player.y + dy;
+  const monster = map.monsters.find((m: Monster) => m.x === targetX && m.y === targetY && m.hp > 0);
+
+  const combatLog: string[] = [];
+  let visualFx: VisualFxType = 'none';
+  let flashEffect: GameState['flashEffect'] = null;
+  let isVictory = state.isVictory;
+
+  if (skill.type === 'heal') {
+    const healed = Math.min(20, player.maxHp - player.hp);
+    player.hp += healed;
+    sounds.heal();
+    combatLog.push(`✨ ${skill.name} weaves celestial light, restoring ${healed} HP!`);
+    flashEffect = 'heal';
+  } else if (skill.type === 'buff') {
+    if (skill.bonusEffect) {
+      applyStatusEffect(player, skill.bonusEffect);
+      combatLog.push(`⚡ ${skill.name} activated: Gained ${skill.bonusEffect.name} for ${skill.bonusEffect.duration} turns!`);
+    }
+    sounds.buff();
+    flashEffect = 'heal';
+  } else if (!monster) {
+    combatLog.push(`💨 You cast ${skill.name}, but there is no enemy directly ahead!`);
+    sounds.attack();
+  } else {
+    // Attack / Spell targeting monster ahead!
+    if (skill.id === 'fireball') {
+      sounds.fireball();
+      visualFx = 'fireball';
+    } else if (skill.id === 'frost_nova') {
+      sounds.frost();
+      visualFx = 'frost';
+    } else {
+      sounds.attack();
+      visualFx = 'melee_hit';
+    }
+
+    // Durability loss on physical weapon skills
+    if (skill.type === 'attack') {
+      player.weaponDurability = Math.max(0, player.weaponDurability - 1);
+    }
+
+    const multiplier = skill.damageMultiplier || 1.5;
+    const baseDmg = Math.max(1, player.baseAttack + (player.weapon.bonusAtk || 0));
+    let totalDmg = Math.round(baseDmg * multiplier);
+
+    if (player.weaponDurability === 0 && skill.type === 'attack') {
+      totalDmg = Math.max(1, Math.floor(totalDmg * 0.35));
+      combatLog.push('⚠ Your weapon is broken! Strike dealt reduced damage.');
+    }
+
+    monster.hp = Math.max(0, monster.hp - totalDmg);
+    combatLog.push(`💥 ${skill.name} strikes ${monster.name} for ${totalDmg} damage! (${monster.hp}/${monster.maxHp} HP)`);
+
+    if (skill.bonusEffect) {
+      applyStatusEffect(monster, skill.bonusEffect);
+      combatLog.push(`🎯 Inflicted ${skill.bonusEffect.name} on ${monster.name} for ${skill.bonusEffect.duration} turns!`);
+    }
+
+    if (monster.hp <= 0) {
+      sounds.monsterDeath();
+      combatLog.push(`💀 ${monster.name} has been vanquished!`);
+      player.xp += monster.xpReward;
+      combatLog.push(`🌟 Gained +${monster.xpReward} XP!`);
+      if (monster.isBoss) {
+        isVictory = true;
+        combatLog.push('🏆 The Minotaur Dreadlord falls! The ancient Abyssal Relic is claimed!');
+      }
+    } else {
+      // Monster counter-attacks
+      const retaliation = Math.max(1, monster.attack - (player.shieldArmor.bonusDef || 0));
+      player.hp = Math.max(0, player.hp - retaliation);
+      sounds.playerHurt();
+      combatLog.push(`🩸 ${monster.name} retaliates for ${retaliation} damage!`);
+      visualFx = 'damage_taken';
+      flashEffect = 'damage';
+    }
+  }
+
+  // Tick status effects
+  const pDot = tickStatusEffects(player, true);
+  combatLog.push(...pDot.logMessages);
+
+  const isGameOver = player.hp <= 0;
+  if (isGameOver) {
+    sounds.gameOver();
+    combatLog.push('💀 Your wounds prove fatal. Your journey ends here.');
+  }
+
+  const turnLog = buildTurnLog(
+    player,
+    map,
+    state.currentFloor,
+    state.turnCount + 1,
+    `Used ${skill.name}`,
+    visualFx,
+    combatLog
+  );
+
+  return {
+    ...state,
+    player,
+    dungeonMap: map,
+    turnCount: state.turnCount + 1,
+    logs: [turnLog, ...state.logs],
+    currentTurn: turnLog,
+    isGameOver,
+    isVictory,
+    flashEffect,
+    floatingText: `Used ${skill.name}!`,
+  };
+}
+
+// HANDLE 6 EXPANDED PLAYER ACTIONS
+export function handlePlayerAction(
+  state: GameState,
+  actionIndex: number // 1: Move Forward/Back, 2: Turn Left/Right, 3: Attack, 4: Skill, 5: Item, 6: Environment
+): GameState {
+  if (state.isGameOver) return state;
+
+  // Turn 1 Class prompt handling if not yet chosen:
+  if (!state.player.classChosen) {
+    if (actionIndex === 1) return selectPlayerClass(state, 'Fighter');
+    if (actionIndex === 2) return selectPlayerClass(state, 'Mage');
+    if (actionIndex === 3) return selectPlayerClass(state, 'Rogue');
+  }
+
+  const player = JSON.parse(JSON.stringify(state.player)) as Player;
   const map = JSON.parse(JSON.stringify(state.dungeonMap)) as DungeonMap;
   let floor = state.currentFloor;
   let actionTakenName = '';
@@ -275,592 +611,370 @@ export function handlePlayerAction(
   let floatingText: string | null = null;
   let flashEffect: GameState['flashEffect'] = null;
   let isVictory = state.isVictory;
+  let visualFx: VisualFxType = 'none';
 
   const { dx, dy } = DIRECTION_OFFSETS[player.facing];
   const targetX = player.x + dx;
   const targetY = player.y + dy;
+  const monsterInFront = map.monsters.find(
+    (m: Monster) => m.x === targetX && m.y === targetY && m.hp > 0
+  );
 
-  const getTile = (x: number, y: number): TileType => {
-    if (x < 0 || x >= map.width || y < 0 || y >= map.height) return 'wall';
-    return map.tiles[y][x];
+  // Helper for torch decay on movement:
+  const checkMovementTorch = () => {
+    player.torchTurnCounter += 1;
+    if (player.torchTurnCounter >= 5) {
+      player.torchTurnCounter = 0;
+      if (player.torchFuel > 0) {
+        player.torchFuel -= 1;
+        if (player.torchFuel === 0) {
+          combatLog.push('🔥 Your torch has burned out completely! The dungeon plunges into pitch darkness.');
+        } else {
+          combatLog.push(`🔥 Your torch flickers low (Torch Fuel: ${player.torchFuel}/5).`);
+        }
+      }
+    }
   };
 
-  const getMonster = (x: number, y: number): Monster | null => {
-    return map.monsters.find((m) => m.x === x && m.y === y && m.hp > 0) || null;
-  };
+  // 1. MOVE FORWARD / STEP BACK
+  if (actionIndex === 1) {
+    if (monsterInFront) {
+      sounds.bump();
+      actionTakenName = `Cannot step forward; blocked by ${monsterInFront.name}.`;
+      floatingText = 'Blocked by monster!';
+    } else if (
+      targetX < 0 ||
+      targetX >= map.width ||
+      targetY < 0 ||
+      targetY >= map.height ||
+      map.tiles[targetY][targetX] === 'wall'
+    ) {
+      sounds.bump();
+      actionTakenName = 'Bumped solidly into a masonry wall.';
+      floatingText = 'Wall blocking passage!';
+    } else if (map.tiles[targetY][targetX] === 'door_closed') {
+      sounds.bump();
+      actionTakenName = 'Bumped against the heavy closed door.';
+      floatingText = 'Closed Door ahead!';
+    } else {
+      player.x = targetX;
+      player.y = targetY;
+      sounds.step();
+      checkMovementTorch();
+      actionTakenName = `Stepped forward into Grid (${player.x}, ${player.y}).`;
 
-  const targetTile = getTile(targetX, targetY);
-  const targetMonster = getMonster(targetX, targetY);
-
-  // Passive stamina recovery (+1 per turn up to max)
-  player.stamina = Math.min(player.maxStamina, player.stamina + 1);
-
-  switch (actionIndex) {
-    case 1: {
-      // 1. Step Forward
-      actionTakenName = 'Step Forward';
-      if (targetMonster) {
-        actionTakenName = `Blocked by ${targetMonster.name}! You must attack.`;
-        sounds.bump();
-        floatingText = `Blocked by ${targetMonster.name}!`;
-      } else if (targetTile === 'wall') {
-        actionTakenName = 'You bump face-first into the cold stone wall.';
-        sounds.bump();
-        floatingText = 'Blocked by solid wall';
-      } else if (targetTile === 'door_closed') {
-        actionTakenName = 'The heavy wooden door is shut. Interact (Action 6) to open it.';
-        sounds.bump();
-        floatingText = 'Door is closed';
-      } else {
-        player.x = targetX;
-        player.y = targetY;
-        sounds.step();
-        floatingText = 'Stepped forward';
-
-        const nextFrontX = player.x + dx;
-        const nextFrontY = player.y + dy;
-        const enemyAhead = getMonster(nextFrontX, nextFrontY);
-        if (enemyAhead) {
-          combatLog.push(`Warning: You have closed in on a ${enemyAhead.name}! Combat is imminent.`);
-        }
-      }
-      break;
-    }
-
-    case 2: {
-      // 2. Turn Left (90°)
-      actionTakenName = 'Turn Left (90°)';
-      player.facing = ((player.facing + 3) % 4) as Direction;
-      sounds.turn();
-      floatingText = `Turned left (${DIRECTION_NAMES[player.facing]})`;
-      break;
-    }
-
-    case 3: {
-      // 3. Turn Right (90°)
-      actionTakenName = 'Turn Right (90°)';
-      player.facing = ((player.facing + 1) % 4) as Direction;
-      sounds.turn();
-      floatingText = `Turned right (${DIRECTION_NAMES[player.facing]})`;
-      break;
-    }
-
-    case 4: {
-      // 4. Step Back / Turn 180°
-      const backX = player.x - dx;
-      const backY = player.y - dy;
-      const backTile = getTile(backX, backY);
-      const backMonster = getMonster(backX, backY);
-
-      if (backTile === 'floor' && !backMonster) {
-        player.x = backX;
-        player.y = backY;
-        actionTakenName = 'Stepped backward carefully.';
-        sounds.step();
-        floatingText = 'Stepped backward';
-      } else {
-        player.facing = ((player.facing + 2) % 4) as Direction;
-        actionTakenName = 'Turned around 180° to face the rear.';
-        sounds.turn();
-        floatingText = `Turned 180° (${DIRECTION_NAMES[player.facing]})`;
-      }
-      break;
-    }
-
-    case 5: {
-      // 5. Strafe Left / Right
-      const leftX = player.x - dy;
-      const leftY = player.y + dx;
-      const leftTile = getTile(leftX, leftY);
-      const leftMonster = getMonster(leftX, leftY);
-
-      const rightX = player.x + dy;
-      const rightY = player.y - dx;
-      const rightTile = getTile(rightX, rightY);
-      const rightMonster = getMonster(rightX, rightY);
-
-      if (leftTile === 'floor' && !leftMonster) {
-        player.x = leftX;
-        player.y = leftY;
-        sounds.step();
-        actionTakenName = 'Strafed laterally to the left.';
-        floatingText = 'Strafed Left';
-      } else if (rightTile === 'floor' && !rightMonster) {
-        player.x = rightX;
-        player.y = rightY;
-        sounds.step();
-        actionTakenName = 'Strafed laterally to the right.';
-        floatingText = 'Strafed Right';
-      } else {
-        sounds.bump();
-        actionTakenName = 'Lateral corridors on both sides are blocked by solid stone.';
-        floatingText = 'Strafe Blocked';
-      }
-      break;
-    }
-
-    case 6: {
-      // 6. Context Interaction
-      if (targetMonster) {
-        actionTakenName = `Attack ${targetMonster.name}`;
-        sounds.attack();
-        flashEffect = 'hit';
-
-        if (!targetMonster.statusEffects) targetMonster.statusEffects = [];
-
-        const isHasted = player.statusEffects.some((e) => e.type === 'hasted');
-        const isWeakened = player.statusEffects.some((e) => e.type === 'weakened');
-        const critChance = isHasted ? 0.45 : 0.2;
-        const isCrit = Math.random() < critChance;
-
-        let playerAtk = player.baseAttack + (player.weapon.bonusAtk || 0);
-        if (isHasted) playerAtk += 3;
-        if (isWeakened) playerAtk = Math.max(1, playerAtk - 2);
-
-        const atkRoll = Math.floor(Math.random() * 4);
-        const monsterWeakened = targetMonster.statusEffects.some((e) => e.type === 'weakened');
-        const monsterDef = Math.max(0, targetMonster.defense - (monsterWeakened ? 1 : 0));
-
-        let dmg = Math.max(1, playerAtk + atkRoll - monsterDef);
-        if (isCrit) dmg = Math.floor(dmg * 1.5) + 2;
-
-        targetMonster.hp -= dmg;
-        combatLog.push(
-          `You strike ${targetMonster.name} with your ${player.weapon.name} for ${dmg} DMG!${isCrit ? ' (CRITICAL HIT!)' : ''}`
-        );
-        floatingText = `-${dmg} HP to ${targetMonster.name}`;
-
-        if (targetMonster.hp <= 0) {
-          targetMonster.hp = 0;
-          sounds.hit();
-          player.xp += targetMonster.xpReward;
-          const goldDropped = Math.floor(Math.random() * 14) + 6;
-          player.gold += goldDropped;
-
-          combatLog.push(`★ Defeated ${targetMonster.name}! Gained ${targetMonster.xpReward} XP and ${goldDropped} gold.`);
-
-          if (targetMonster.id === 'minotaur_boss') {
-            isVictory = true;
-            combatLog.push('★ TRIUMPH! The Minotaur Dreadlord falls! The dungeon tremors as the Abyssal Portal unlocks!');
-          }
-
-          if (player.xp >= player.nextXp) {
-            player.level += 1;
-            player.maxHp += 6;
-            player.hp = player.maxHp;
-            player.maxMp += 4;
-            player.mp = player.maxMp;
-            player.maxStamina += 4;
-            player.stamina = player.maxStamina;
-            player.baseAttack += 1;
-            player.nextXp = Math.floor(player.nextXp * 1.8);
-            combatLog.push(`▲ LEVEL UP! Reached Level ${player.level}! All attributes increased and fully restored!`);
-          }
-        } else {
-          let monsterAtk = targetMonster.attack;
-          if (monsterWeakened) monsterAtk = Math.max(1, monsterAtk - 2);
-
-          const isShielded = player.statusEffects.some((e) => e.type === 'shielded');
-          const totalDef = player.baseDefense + (player.shieldArmor.bonusDef || 0) + (isShielded ? 3 : 0);
-          const monsterAtkRoll = Math.floor(Math.random() * 3);
-          const monsterDmg = Math.max(1, monsterAtk + monsterAtkRoll - totalDef);
-
-          player.hp -= monsterDmg;
-          sounds.hit();
-          flashEffect = 'damage';
-          combatLog.push(`${targetMonster.name} retaliates, slashing you for ${monsterDmg} DMG!`);
-
-          if (targetMonster.symbol === 'g' && Math.random() < 0.4) {
-            applyStatusEffect(player, {
-              type: 'poisoned',
-              name: 'Poisoned',
-              duration: 3,
-              potency: 2,
-              description: 'Vile goblin toxins sap 2 HP each turn.',
-            });
-            sounds.debuff();
-            combatLog.push('☣ The Goblin Scout blade is poisoned! You are POISONED (3 turns)!');
-          } else if (targetMonster.symbol === 'S' && Math.random() < 0.4) {
-            applyStatusEffect(player, {
-              type: 'weakened',
-              name: 'Weakened',
-              duration: 3,
-              potency: 2,
-              description: 'Chilling undead frost numbs your muscles (-2 ATK).',
-            });
-            sounds.debuff();
-            combatLog.push('❄ The Skeleton chilling frost numbs your strength! You are WEAKENED (-2 ATK)!');
-          } else if (targetMonster.symbol === 'N' && Math.random() < 0.5) {
-            applyStatusEffect(player, {
-              type: 'weakened',
-              name: 'Weakened',
-              duration: 4,
-              potency: 2,
-              description: 'A shadowy hex degrades physical prowess (-2 ATK for 4 turns).',
-            });
-            sounds.debuff();
-            combatLog.push('🔮 The Necromancer hexes your soul! You are WEAKENED (-2 ATK)!');
-          } else if (targetMonster.symbol === 'B' && Math.random() < 0.4) {
-            applyStatusEffect(player, {
-              type: 'weakened',
-              name: 'Weakened',
-              duration: 3,
-              potency: 2,
-              description: 'A colossal shockwave dazes you (-2 ATK for 3 turns).',
-            });
-            sounds.debuff();
-            combatLog.push('💥 The Minotaur colossal blow dazes you! You are WEAKENED (-2 ATK)!');
-          }
-
-          if (player.hp <= 0) {
-            player.hp = 0;
-            combatLog.push('☠ YOU HAVE BEEN SLAIN in the dungeon depths!');
-          }
-        }
-      } else if (targetTile === 'door_closed') {
-        map.tiles[targetY][targetX] = 'door_open';
-        sounds.door();
-        flashEffect = 'door';
-        actionTakenName = 'You push open the heavy reinforced door with a loud groan.';
-        floatingText = 'Door Opened';
-      } else if (targetTile === 'chest') {
-        const chest = map.chests.find((c) => c.x === targetX && c.y === targetY);
-        if (chest && !chest.opened) {
-          chest.opened = true;
-          sounds.chest();
-          flashEffect = 'heal';
-          player.inventory.push(chest.item);
-          lootNotification = `Found ${chest.item.name}! (${chest.item.description})`;
-          actionTakenName = `Opened the chest and found ${chest.item.name}!`;
-          floatingText = `Looted ${chest.item.name}`;
-
-          if (chest.item.type === 'weapon' && (chest.item.bonusAtk || 0) > (player.weapon.bonusAtk || 0)) {
-            player.inventory.push(player.weapon);
-            player.weapon = chest.item;
-            lootNotification += ` Equipped ${chest.item.name} automatically!`;
-          } else if (chest.item.type === 'armor' && (chest.item.bonusDef || 0) > (player.shieldArmor.bonusDef || 0)) {
-            player.inventory.push(player.shieldArmor);
-            player.shieldArmor = chest.item;
-            lootNotification += ` Equipped ${chest.item.name} automatically!`;
-          }
-        } else {
-          actionTakenName = 'The chest is already empty.';
-          floatingText = 'Chest is empty';
-        }
-      } else if (targetTile === 'fountain') {
-        sounds.spell();
-        flashEffect = 'heal';
-        const healHp = player.maxHp - player.hp;
-        const healMp = player.maxMp - player.mp;
+      // Check tile events
+      const currTile = map.tiles[player.y][player.x];
+      if (currTile === 'fountain') {
         player.hp = player.maxHp;
         player.mp = player.maxMp;
-        player.stamina = player.maxStamina;
-        const cleansed = removeStatusEffects(player, ['poisoned', 'weakened', 'burned']);
-        const cleanseNotice = cleansed.length > 0 ? ` Cleansed ${cleansed.join(', ')}!` : '';
-        actionTakenName = `You drink from the radiant fountain. Wounds seal, mana and stamina surge!${cleanseNotice}`;
-        floatingText = `+${healHp} HP, +${healMp} MP`;
-      } else if (targetTile === 'stairs_down') {
-        sounds.stairs();
-        floor += 1;
-        const newMap = getDungeonFloor(floor);
-        map.width = newMap.width;
-        map.height = newMap.height;
-        map.tiles = newMap.tiles;
-        map.monsters = newMap.monsters;
-        map.chests = newMap.chests;
-        map.explored = newMap.explored;
+        sounds.heal();
+        flashEffect = 'heal';
+        combatLog.push('💧 The sacred spring radiates divine grace, fully restoring your HP and MP!');
+      } else if (currTile === 'stairs_down') {
+        if (floor < 3) {
+          floor += 1;
+          const nextFloorMap = getDungeonFloor(floor);
+          player.x = 15;
+          player.y = 24;
+          player.facing = 0;
+          sounds.stairs();
+          actionTakenName = `Descended the spiral stone stairway to Floor ${floor}!`;
+          floatingText = `Entered Floor ${floor}!`;
+          return {
+            ...state,
+            player,
+            currentFloor: floor,
+            dungeonMap: nextFloorMap,
+            turnCount: state.turnCount + 1,
+            logs: [
+              buildTurnLog(
+                player,
+                nextFloorMap,
+                floor,
+                state.turnCount + 1,
+                actionTakenName,
+                'none',
+                [`Entered Floor ${floor}. The air grows colder.`]
+              ),
+              ...state.logs,
+            ],
+            currentTurn: buildTurnLog(
+              player,
+              nextFloorMap,
+              floor,
+              state.turnCount + 1,
+              actionTakenName,
+              'none',
+              [`Entered Floor ${floor}. The air grows colder.`]
+            ),
+          };
+        }
+      }
+    }
+  }
 
+  // 2. TURN LEFT (90°) / TURN RIGHT (90°)
+  else if (actionIndex === 2) {
+    player.facing = ((player.facing + 3) % 4) as Direction;
+    sounds.turn();
+    actionTakenName = `Turned left 90° to face ${DIRECTION_NAMES[player.facing]}.`;
+  }
+
+  // 3. BASIC ATTACK / MELEE STRIKE
+  else if (actionIndex === 3) {
+    if (!monsterInFront) {
+      sounds.attack();
+      actionTakenName = 'Swung weapon into the empty dungeon air.';
+      floatingText = 'No target in melee range!';
+    } else {
+      sounds.attack();
+      visualFx = 'melee_hit';
+
+      // Weapon durability decay
+      player.weaponDurability = Math.max(0, player.weaponDurability - 1);
+      let baseAtk = player.baseAttack + (player.weapon.bonusAtk || 0);
+
+      if (player.weaponDurability === 0) {
+        baseAtk = Math.max(1, Math.floor(baseAtk * 0.3));
+        combatLog.push('⚠ Your weapon is broken! Deals minimal damage until repaired.');
+      }
+
+      const roll = Math.floor(Math.random() * 4) + 1;
+      const dmg = Math.max(1, baseAtk + roll - monsterInFront.defense);
+      monsterInFront.hp = Math.max(0, monsterInFront.hp - dmg);
+      combatLog.push(`⚔ You strike ${monsterInFront.name} for ${dmg} physical damage! (${monsterInFront.hp}/${monsterInFront.maxHp} HP)`);
+
+      if (monsterInFront.hp <= 0) {
+        sounds.monsterDeath();
+        combatLog.push(`💀 ${monsterInFront.name} collapses into lifeless dust!`);
+        player.xp += monsterInFront.xpReward;
+        combatLog.push(`🌟 Gained +${monsterInFront.xpReward} XP!`);
+        if (monsterInFront.isBoss) {
+          isVictory = true;
+          combatLog.push('🏆 The Minotaur Dreadlord falls! The ancient Abyssal Relic is claimed!');
+        }
+      } else {
+        // Monster retaliates
+        const retaliation = Math.max(1, monsterInFront.attack - (player.shieldArmor.bonusDef || 0));
+        player.hp = Math.max(0, player.hp - retaliation);
+        sounds.playerHurt();
+        combatLog.push(`🩸 ${monsterInFront.name} counter-attacks for ${retaliation} damage!`);
+        visualFx = 'damage_taken';
+        flashEffect = 'damage';
+      }
+      actionTakenName = `Melee strike on ${monsterInFront.name}.`;
+    }
+  }
+
+  // 4. CAST SPELL / USE CLASS SKILL
+  else if (actionIndex === 4) {
+    const primarySkill = player.skills[0];
+    if (primarySkill) {
+      return castClassSkill(state, primarySkill.id);
+    }
+  }
+
+  // 5. USE ITEM (POTION, LIGHT TORCH, REPAIR WEAPON)
+  else if (actionIndex === 5) {
+    if (player.torchFuel < 3 && player.torchesCount > 0) {
+      return lightTorch(state);
+    } else if (player.weaponDurability <= 5) {
+      return repairWeapon(state);
+    } else {
+      return usePotion(state);
+    }
+  }
+
+  // 6. ENVIRONMENT ACTION (Open door, Open chest, Talk to merchant, Search)
+  else if (actionIndex === 6) {
+    const targetTile = map.tiles[targetY]?.[targetX];
+    const chest = map.chests.find((c) => c.x === targetX && c.y === targetY && !c.opened);
+
+    if (targetTile === 'merchant') {
+      sounds.merchant();
+      actionTakenName = 'Spoke with the Shopkeeper.';
+      floatingText = 'Shopkeeper welcomes you!';
+      combatLog.push('💰 Shopkeeper: "Welcome, traveler! Browse potions, torches, and repairs."');
+      return {
+        ...state,
+        isMerchantOpen: true,
+      };
+    } else if (targetTile === 'door_closed') {
+      map.tiles[targetY][targetX] = 'door_open';
+      sounds.door();
+      flashEffect = 'door';
+      actionTakenName = 'Pushed open the heavy wooden door [ | + | ].';
+      floatingText = 'Door Opened!';
+      combatLog.push('🚪 The iron hinges shriek as the heavy wooden door swings wide into the hall.');
+    } else if (chest) {
+      chest.opened = true;
+      sounds.loot();
+      player.inventory.push(chest.item);
+      player.gold += 20;
+      lootNotification = `Found ${chest.item.name} and 20 gold pieces!`;
+      actionTakenName = `Opened the ornate chest [ ( $ ) ].`;
+      floatingText = `Looted ${chest.item.name}!`;
+    } else if (targetTile === 'fountain') {
+      player.hp = player.maxHp;
+      player.mp = player.maxMp;
+      sounds.heal();
+      flashEffect = 'heal';
+      actionTakenName = 'Drank deep from the sacred fountain.';
+      floatingText = 'Fully Restored!';
+      combatLog.push('💧 Celestial energies flood your spirit, fully rejuvenating HP and MP.');
+    } else if (targetTile === 'stairs_down') {
+      if (floor < 3) {
+        floor += 1;
+        const nextFloorMap = getDungeonFloor(floor);
         player.x = 15;
         player.y = 24;
         player.facing = 0;
-
-        actionTakenName = `Descended the spiral stone stairway into the dark abyss of Floor ${floor}!`;
-        floatingText = `Entered Floor ${floor}`;
-      } else {
-        const foundGold = Math.random() < 0.35;
-        if (foundGold) {
-          const goldAmount = Math.floor(Math.random() * 6) + 3;
-          player.gold += goldAmount;
-          sounds.chest();
-          actionTakenName = `Searched the floor cracks and found ${goldAmount} ancient gold coins!`;
-          floatingText = `+${goldAmount} Gold`;
-        } else {
-          actionTakenName = 'Searched the floor carefully, but found only dust and ancient bone fragments.';
-          floatingText = 'Found nothing';
-        }
+        sounds.stairs();
+        actionTakenName = `Descended the spiral stone stairway to Floor ${floor}!`;
+        floatingText = `Entered Floor ${floor}!`;
+        return {
+          ...state,
+          player,
+          currentFloor: floor,
+          dungeonMap: nextFloorMap,
+          turnCount: state.turnCount + 1,
+          logs: [
+            buildTurnLog(
+              player,
+              nextFloorMap,
+              floor,
+              state.turnCount + 1,
+              actionTakenName,
+              'none',
+              [`Entered Floor ${floor}. The air grows colder.`]
+            ),
+            ...state.logs,
+          ],
+          currentTurn: buildTurnLog(
+            player,
+            nextFloorMap,
+            floor,
+            state.turnCount + 1,
+            actionTakenName,
+            'none',
+            [`Entered Floor ${floor}. The air grows colder.`]
+          ),
+        };
       }
-      break;
+    } else {
+      actionTakenName = 'Searched the floor and surrounding masonry for secrets.';
+      combatLog.push('🔍 You scrutinize the flagstones and mortar seams, but find nothing of note.');
     }
   }
 
-  // TICK STATUS EFFECTS FOR PLAYER AND VISIBLE/ACTIVE MONSTERS AT END OF TURN
-  const playerTick = tickStatusEffects(player, true);
-  if (playerTick.dotDamage > 0) {
-    sounds.poison();
-    flashEffect = 'damage';
+  // Tick status effects
+  const pDot = tickStatusEffects(player, true);
+  combatLog.push(...pDot.logMessages);
+
+  // Check game over
+  const isGameOver = player.hp <= 0;
+  if (isGameOver) {
+    sounds.gameOver();
+    combatLog.push('💀 Your wounds prove fatal. Your journey ends here.');
   }
-  playerTick.logMessages.forEach((msg) => combatLog.push(msg));
 
-  map.monsters.forEach((mon) => {
-    if (mon.hp > 0 && mon.statusEffects && mon.statusEffects.length > 0) {
-      const monTick = tickStatusEffects(mon, false);
-      monTick.logMessages.forEach((msg) => combatLog.push(msg));
-      if (mon.hp <= 0) {
-        mon.hp = 0;
-        player.xp += mon.xpReward;
-        combatLog.push(`★ ${mon.name} succumbed to status afflictions! (+${mon.xpReward} XP)`);
-        if (mon.id === 'minotaur_boss') {
-          isVictory = true;
-          combatLog.push('★ TRIUMPH! The Minotaur Dreadlord falls!');
-        }
-      }
-    }
-  });
-
-  const nextTurnNumber = state.turnCount + 1;
-  const newTurn = buildTurnLog(
+  const turnLog = buildTurnLog(
     player,
     map,
     floor,
-    nextTurnNumber,
+    state.turnCount + 1,
     actionTakenName,
-    combatLog.length > 0 ? combatLog : undefined,
+    visualFx,
+    combatLog,
     lootNotification
   );
 
   return {
+    ...state,
     player,
     currentFloor: floor,
     dungeonMap: map,
-    turnCount: nextTurnNumber,
-    logs: [newTurn, ...state.logs],
-    currentTurn: newTurn,
-    isGameOver: player.hp <= 0,
+    turnCount: state.turnCount + 1,
+    logs: [turnLog, ...state.logs],
+    currentTurn: turnLog,
+    isGameOver,
     isVictory,
     floatingText,
     flashEffect,
   };
 }
 
-// Cast Magic Spell
-export function castSpell(
+// MERCHANT SHOP ACTIONS
+export function buyShopItem(
   state: GameState,
-  spellType: 'firebolt' | 'heal' | 'haste' | 'weaken'
+  itemType: 'potion' | 'torch' | 'repair' | 'sword'
 ): GameState {
-  if (state.isGameOver) return state;
-
   const player = JSON.parse(JSON.stringify(state.player)) as Player;
-  if (!player.statusEffects) player.statusEffects = [];
-  const map = JSON.parse(JSON.stringify(state.dungeonMap)) as DungeonMap;
-  const combatLog: string[] = [];
-  let floatingText: string | null = null;
-  let flashEffect: GameState['flashEffect'] = null;
-  let isVictory = state.isVictory;
+  let cost = 15;
+  let text = '';
 
-  if (spellType === 'heal') {
-    const cost = 4;
-    if (player.mp < cost) {
-      return { ...state, floatingText: 'Not enough Mana! (Needs 4 MP)' };
-    }
-    player.mp -= cost;
-    const healAmount = 16;
-    const actualHeal = Math.min(healAmount, player.maxHp - player.hp);
-    player.hp = Math.min(player.maxHp, player.hp + healAmount);
-    sounds.spell();
-    flashEffect = 'heal';
-    floatingText = `+${actualHeal} HP Healed`;
-    combatLog.push(`★ Chanted Healing Glow! Restored ${actualHeal} HP. (Cost 4 MP)`);
-  } else if (spellType === 'haste') {
-    const cost = 4;
-    if (player.mp < cost) {
-      return { ...state, floatingText: 'Not enough Mana! (Needs 4 MP)' };
-    }
-    player.mp -= cost;
-    applyStatusEffect(player, {
-      type: 'hasted',
-      name: 'Hasted',
-      duration: 5,
-      potency: 3,
-      description: 'Supernatural agility (+3 ATK and heightened critical chance for 5 turns).',
+  if (itemType === 'potion') {
+    cost = 15;
+    if (player.gold < cost) return { ...state, floatingText: 'Not enough gold!' };
+    player.gold -= cost;
+    player.inventory.push({
+      id: `healing_pot_${Date.now()}`,
+      name: 'Healing Potion',
+      type: 'potion',
+      value: 15,
+      healHp: 20,
+      description: 'Restores 20 HP.',
     });
-    sounds.buff();
-    flashEffect = 'heal';
-    floatingText = 'Hasted! (+3 ATK & Crit)';
-    combatLog.push('★ Chanted Haste Surge! Infused with blistering speed (+3 ATK & +35% Crit for 5 turns).');
-  } else if (spellType === 'weaken') {
-    const cost = 3;
-    if (player.mp < cost) {
-      return { ...state, floatingText: 'Not enough Mana! (Needs 3 MP)' };
-    }
-
-    const { dx, dy } = DIRECTION_OFFSETS[player.facing];
-    let hitMonster: Monster | null = null;
-    for (let dist = 1; dist <= 4; dist++) {
-      const tx = player.x + dx * dist;
-      const ty = player.y + dy * dist;
-      const m = map.monsters.find((mon) => mon.x === tx && mon.y === ty && mon.hp > 0);
-      if (m) {
-        hitMonster = m;
-        break;
-      }
-      if (map.tiles[ty]?.[tx] === 'wall' || map.tiles[ty]?.[tx] === 'door_closed') break;
-    }
-
-    if (!hitMonster) {
-      return { ...state, floatingText: 'No target in sight for Weaken Curse!' };
-    }
-
-    player.mp -= cost;
-    applyStatusEffect(hitMonster, {
-      type: 'weakened',
-      name: 'Weakened',
-      duration: 4,
-      potency: 2,
-      description: 'Enfeebled muscles (-2 ATK for 4 turns).',
-    });
-    sounds.debuff();
-    flashEffect = 'hit';
-    floatingText = `Weakened ${hitMonster.name}!`;
-    combatLog.push(`★ Cast Weaken Curse upon ${hitMonster.name}! Their attack power withered (-2 ATK for 4 turns).`);
-  } else if (spellType === 'firebolt') {
-    const cost = 5;
-    if (player.mp < cost) {
-      return { ...state, floatingText: 'Not enough Mana! (Needs 5 MP)' };
-    }
-
-    const { dx, dy } = DIRECTION_OFFSETS[player.facing];
-    let hitMonster: Monster | null = null;
-    for (let dist = 1; dist <= 4; dist++) {
-      const tx = player.x + dx * dist;
-      const ty = player.y + dy * dist;
-      const m = map.monsters.find((mon) => mon.x === tx && mon.y === ty && mon.hp > 0);
-      if (m) {
-        hitMonster = m;
-        break;
-      }
-      if (map.tiles[ty]?.[tx] === 'wall' || map.tiles[ty]?.[tx] === 'door_closed') break;
-    }
-
-    if (!hitMonster) {
-      return { ...state, floatingText: 'No target in sight for Firebolt!' };
-    }
-
-    player.mp -= cost;
-    sounds.spell();
-    flashEffect = 'hit';
-    const fireDmg = Math.floor(Math.random() * 6) + 14;
-    hitMonster.hp -= fireDmg;
-
-    applyStatusEffect(hitMonster, {
-      type: 'burned',
-      name: 'Burned',
-      duration: 3,
-      potency: 3,
-      description: 'Clinging arcane flames (3 DMG each turn).',
-    });
-
-    floatingText = `-${fireDmg} Fire DMG + Burned!`;
-    combatLog.push(`★ Hurled Firebolt at ${hitMonster.name} for ${fireDmg} Fire DMG! Applied BURNED status (3 turns).`);
-
-    if (hitMonster.hp <= 0) {
-      hitMonster.hp = 0;
-      player.xp += hitMonster.xpReward;
-      combatLog.push(`★ The Firebolt incinerated ${hitMonster.name}! Gained ${hitMonster.xpReward} XP.`);
-      if (hitMonster.id === 'minotaur_boss') {
-        isVictory = true;
-        combatLog.push('★ TRIUMPH! The Minotaur Dreadlord falls before your magic! The Abyssal Portal unlocks!');
-      }
-    }
+    text = 'Bought Healing Potion!';
+  } else if (itemType === 'torch') {
+    cost = 10;
+    if (player.gold < cost) return { ...state, floatingText: 'Not enough gold!' };
+    player.gold -= cost;
+    player.torchesCount += 2;
+    text = 'Bought +2 Torches!';
+  } else if (itemType === 'repair') {
+    cost = 12;
+    if (player.gold < cost) return { ...state, floatingText: 'Not enough gold!' };
+    player.gold -= cost;
+    player.weaponDurability = player.maxWeaponDurability;
+    text = 'Weapon fully repaired!';
+  } else if (itemType === 'sword') {
+    cost = 40;
+    if (player.gold < cost) return { ...state, floatingText: 'Not enough gold!' };
+    player.gold -= cost;
+    player.weapon = {
+      id: 'fine_steel_blade',
+      name: 'Forged Runed Blade',
+      type: 'weapon',
+      value: 40,
+      bonusAtk: 7,
+      durability: 40,
+      maxDurability: 40,
+      description: 'A masterfully balanced blade inscribed with glowing runes.',
+    };
+    player.weaponDurability = 40;
+    player.maxWeaponDurability = 40;
+    text = 'Equipped Forged Runed Blade (+7 ATK)!';
   }
 
-  const playerTick = tickStatusEffects(player, true);
-  playerTick.logMessages.forEach((msg) => combatLog.push(msg));
+  sounds.merchant();
 
-  const nextTurnNumber = state.turnCount + 1;
-  const newTurn = buildTurnLog(
-    player,
-    map,
-    state.currentFloor,
-    nextTurnNumber,
-    `Cast ${spellType}`,
-    combatLog,
-    undefined
-  );
-
-  return {
-    ...state,
-    player,
-    dungeonMap: map,
-    turnCount: nextTurnNumber,
-    logs: [newTurn, ...state.logs],
-    currentTurn: newTurn,
-    isVictory,
-    floatingText,
-    flashEffect,
-  };
-}
-
-// Consume potion or use item
-export function useItem(state: GameState, itemId: string): GameState {
-  const itemIndex = state.player.inventory.findIndex((i) => i.id === itemId);
-  if (itemIndex === -1) return state;
-
-  const player = JSON.parse(JSON.stringify(state.player)) as Player;
-  if (!player.statusEffects) player.statusEffects = [];
-  const item = player.inventory[itemIndex];
-  let floatingText: string | null = null;
-  const logEvents: string[] = [];
-
-  if (item.healHp) {
-    player.hp = Math.min(player.maxHp, player.hp + item.healHp);
-    sounds.spell();
-    floatingText = `+${item.healHp} HP Restored`;
-    logEvents.push(`Restored ${item.healHp} HP.`);
-  }
-
-  if (item.healMp) {
-    player.mp = Math.min(player.maxMp, player.mp + item.healMp);
-    sounds.spell();
-    floatingText = `+${item.healMp} MP Restored`;
-    logEvents.push(`Restored ${item.healMp} MP.`);
-  }
-
-  if (item.curesStatus && item.curesStatus.length > 0) {
-    const cleansed = removeStatusEffects(player, item.curesStatus);
-    sounds.buff();
-    floatingText = cleansed.length > 0 ? `Cleansed ${cleansed.join(', ')}!` : 'Cleansed toxins';
-    logEvents.push(`Purged negative status conditions: ${cleansed.join(', ') || 'No afflictions'}.`);
-  }
-
-  if (item.appliesStatus) {
-    applyStatusEffect(player, item.appliesStatus);
-    sounds.buff();
-    floatingText = `Gained ${item.appliesStatus.name}!`;
-    logEvents.push(`Infused with ${item.appliesStatus.name} (${item.appliesStatus.duration} turns).`);
-  }
-
-  player.inventory.splice(itemIndex, 1);
-
-  const playerTick = tickStatusEffects(player, true);
-  playerTick.logMessages.forEach((msg) => logEvents.push(msg));
-
-  const newTurn = buildTurnLog(
+  const turnLog = buildTurnLog(
     player,
     state.dungeonMap,
     state.currentFloor,
-    state.turnCount + 1,
-    `Used ${item.name}`,
-    logEvents,
-    undefined
+    state.turnCount,
+    `Traded with Shopkeeper: ${text}`,
+    'none',
+    [`💰 Paid ${cost} gold: ${text}`]
   );
 
   return {
     ...state,
     player,
-    turnCount: state.turnCount + 1,
-    logs: [newTurn, ...state.logs],
-    currentTurn: newTurn,
-    floatingText,
-    flashEffect: 'heal',
+    logs: [turnLog, ...state.logs.slice(1)],
+    currentTurn: turnLog,
+    floatingText: text,
   };
 }

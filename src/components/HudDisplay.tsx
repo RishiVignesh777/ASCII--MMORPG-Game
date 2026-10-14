@@ -14,33 +14,28 @@ import {
   ShieldCheck,
   Activity,
   AlertTriangle,
-  Wind,
+  BookOpen,
+  Wrench,
+  Package,
+  Key,
+  Coins,
 } from 'lucide-react';
 import { StatusEffect, TurnLog } from '../types';
 
 interface HudDisplayProps {
   currentTurn: TurnLog;
-  xp: number;
-  nextXp: number;
-  level: number;
-  gold: number;
 }
 
-export const HudDisplay: React.FC<HudDisplayProps> = ({
-  currentTurn,
-  xp,
-  nextXp,
-  level,
-  gold,
-}) => {
-  const { hudInfo, heading, viewportDescription, targetMonsterEffects } = currentTurn;
+export const HudDisplay: React.FC<HudDisplayProps> = ({ currentTurn }) => {
+  const { extendedHud: hud, heading, viewportDescription, targetMonsterEffects } = currentTurn;
 
-  const hpPercent = Math.max(0, Math.min(100, (hudInfo.hp / hudInfo.maxHp) * 100));
-  const mpPercent = Math.max(0, Math.min(100, (hudInfo.mp / hudInfo.maxMp) * 100));
-  const staminaPercent = Math.max(0, Math.min(100, (hudInfo.stamina / hudInfo.maxStamina) * 100));
-  const xpPercent = Math.max(0, Math.min(100, (xp / nextXp) * 100));
+  const hpPercent = Math.max(0, Math.min(100, (hud.hp / hud.maxHp) * 100));
+  const mpPercent = Math.max(0, Math.min(100, (hud.mp / hud.maxMp) * 100));
+  const torchPercent = Math.max(0, Math.min(100, (hud.torchFuel / hud.maxTorchFuel) * 100));
+  const duraPercent = Math.max(0, Math.min(100, (hud.weaponDura / hud.maxWeaponDura) * 100));
+  const xpPercent = Math.max(0, Math.min(100, (hud.xp / hud.nextXp) * 100));
 
-  const statusEffects = hudInfo.statusEffects || [];
+  const statusEffects = hud.statusEffects || [];
 
   const getStatusIcon = (type: StatusEffect['type']) => {
     switch (type) {
@@ -78,46 +73,43 @@ export const HudDisplay: React.FC<HudDisplayProps> = ({
 
   return (
     <div className="flex flex-col gap-3 font-mono">
-      {/* 2. COMPASS & HUD CARD */}
+      {/* 2. EXTENDED HUD & CLASS SPELLBOOK CARD */}
       <div className="rounded-xl border border-zinc-800 bg-zinc-900/80 p-4 shadow-xl backdrop-blur-md">
-        <div className="flex items-center justify-between pb-2 mb-3 border-b border-zinc-800/80">
+        <div className="flex flex-wrap items-center justify-between pb-2 mb-3 border-b border-zinc-800/80 gap-2">
           <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-amber-400">
             <Compass className="w-4 h-4 text-amber-400" />
-            <span>2. COMPASS & HUD</span>
+            <span>2. EXTENDED HUD & CLASS SPELLBOOK</span>
           </div>
 
-          <div className="flex items-center gap-3 text-xs text-zinc-400">
-            <span className="flex items-center gap-1 text-amber-300">
-              <Sparkles className="w-3.5 h-3.5" />
-              Lvl {level} ({xp}/{nextXp} XP)
+          <div className="flex flex-wrap items-center gap-3 text-xs text-zinc-300">
+            {/* Class & Level Badge */}
+            <span className="flex items-center gap-1.5 px-2 py-0.5 rounded bg-amber-500/10 border border-amber-500/30 text-amber-300 font-bold">
+              <span>{hud.characterClass}</span>
+              <span className="text-zinc-500">•</span>
+              <span>Lvl {hud.level}</span>
+              <span className="text-[10px] text-zinc-400 font-normal">
+                ({hud.xp}/{hud.nextXp} XP)
+              </span>
             </span>
-            <span className="text-yellow-400 font-semibold">🪙 {gold}g</span>
+
+            {/* Map Position */}
+            <span className="text-zinc-400 flex items-center gap-1">
+              <MapPin className="w-3 h-3 text-sky-400" />
+              Grid ({hud.x}, {hud.y}) Fl: {hud.floor}
+            </span>
           </div>
         </div>
 
-        {/* Stats Grid: Orientation, HP, MP, Stamina, Map Position */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-2.5 text-xs">
-          {/* Orientation */}
-          <div className="flex flex-col gap-1 p-2.5 rounded-lg bg-zinc-950/60 border border-zinc-800/60">
-            <span className="text-zinc-500 text-[11px] flex items-center gap-1">
-              <Compass className="w-3 h-3 text-sky-400" /> Orientation
-            </span>
-            <span className="text-sm font-bold text-sky-300 tracking-wide">
-              {heading}
-            </span>
-            <span className="text-[10px] text-zinc-500">
-              Facing {heading.toLowerCase()}ward
-            </span>
-          </div>
-
+        {/* VITALS GRID: HP, MP, Torch Fuel */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 text-xs">
           {/* Health Gauge */}
           <div className="flex flex-col gap-1 p-2.5 rounded-lg bg-zinc-950/60 border border-zinc-800/60">
             <div className="flex justify-between items-center text-[11px]">
-              <span className="text-zinc-500 flex items-center gap-1">
-                <Heart className="w-3 h-3 text-red-400" /> HP
+              <span className="text-zinc-400 flex items-center gap-1">
+                <Heart className="w-3 h-3 text-red-400" /> HP:
               </span>
               <span className="font-bold text-red-300">
-                {hudInfo.hp} / {hudInfo.maxHp}
+                {hud.hp} / {hud.maxHp}
               </span>
             </div>
             <div className="w-full bg-zinc-800 h-2 rounded-full overflow-hidden mt-1">
@@ -137,11 +129,11 @@ export const HudDisplay: React.FC<HudDisplayProps> = ({
           {/* Mana Gauge */}
           <div className="flex flex-col gap-1 p-2.5 rounded-lg bg-zinc-950/60 border border-zinc-800/60">
             <div className="flex justify-between items-center text-[11px]">
-              <span className="text-zinc-500 flex items-center gap-1">
-                <Zap className="w-3 h-3 text-blue-400" /> MP
+              <span className="text-zinc-400 flex items-center gap-1">
+                <Zap className="w-3 h-3 text-blue-400" /> MP:
               </span>
               <span className="font-bold text-blue-300">
-                {hudInfo.mp} / {hudInfo.maxMp}
+                {hud.mp} / {hud.maxMp}
               </span>
             </div>
             <div className="w-full bg-zinc-800 h-2 rounded-full overflow-hidden mt-1">
@@ -152,124 +144,164 @@ export const HudDisplay: React.FC<HudDisplayProps> = ({
             </div>
           </div>
 
-          {/* Stamina Gauge */}
+          {/* Torch Fuel Gauge */}
           <div className="flex flex-col gap-1 p-2.5 rounded-lg bg-zinc-950/60 border border-zinc-800/60">
             <div className="flex justify-between items-center text-[11px]">
-              <span className="text-zinc-500 flex items-center gap-1">
-                <Wind className="w-3 h-3 text-emerald-400" /> Stamina
+              <span className="text-zinc-400 flex items-center gap-1">
+                <Flame className="w-3 h-3 text-amber-400" /> Torch Fuel:
               </span>
-              <span className="font-bold text-emerald-300">
-                {hudInfo.stamina} / {hudInfo.maxStamina}
+              <span
+                className={`font-bold ${
+                  hud.torchFuel === 0
+                    ? 'text-zinc-500'
+                    : hud.torchFuel <= 2
+                    ? 'text-amber-400 animate-pulse'
+                    : 'text-amber-300'
+                }`}
+              >
+                {hud.torchFuel} / {hud.maxTorchFuel}
               </span>
             </div>
             <div className="w-full bg-zinc-800 h-2 rounded-full overflow-hidden mt-1">
               <div
-                className="h-full bg-emerald-500 transition-all duration-300"
-                style={{ width: `${staminaPercent}%` }}
+                className={`h-full transition-all duration-300 ${
+                  hud.torchFuel > 2
+                    ? 'bg-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.5)]'
+                    : hud.torchFuel > 0
+                    ? 'bg-amber-600'
+                    : 'bg-zinc-700'
+                }`}
+                style={{ width: `${torchPercent}%` }}
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* EQUIPMENT & WEAPON DURABILITY */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-2.5 text-xs">
+          {/* Main Hand + Durability */}
+          <div className="flex flex-col gap-1 p-2 rounded-lg bg-zinc-950/50 border border-zinc-800/50">
+            <div className="flex items-center justify-between text-[11px]">
+              <div className="flex items-center gap-1.5 text-zinc-400">
+                <Sword className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                <span className="font-semibold text-zinc-200 truncate">{hud.mainHand}</span>
+              </div>
+              <span
+                className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
+                  hud.weaponDura === 0
+                    ? 'bg-red-950 text-red-400 border border-red-800 animate-pulse'
+                    : hud.weaponDura <= 5
+                    ? 'bg-amber-950 text-amber-300 border border-amber-800'
+                    : 'text-zinc-400'
+                }`}
+              >
+                Dura: {hud.weaponDura}/{hud.maxWeaponDura}
+              </span>
+            </div>
+            <div className="w-full bg-zinc-800 h-1.5 rounded-full overflow-hidden">
+              <div
+                className={`h-full ${
+                  duraPercent > 40 ? 'bg-amber-400' : duraPercent > 0 ? 'bg-amber-600' : 'bg-red-500'
+                }`}
+                style={{ width: `${duraPercent}%` }}
               />
             </div>
           </div>
 
-          {/* Map Position: Grid (X: __, Y: __) | Dungeon Floor: [Level] */}
-          <div className="flex flex-col gap-1 p-2.5 rounded-lg bg-zinc-950/60 border border-zinc-800/60">
-            <span className="text-zinc-500 text-[11px] flex items-center gap-1">
-              <MapPin className="w-3 h-3 text-amber-400" /> Map Position
-            </span>
-            <span className="text-sm font-bold text-amber-300">
-              Grid (X: {hudInfo.x}, Y: {hudInfo.y})
-            </span>
-            <span className="text-[10px] text-zinc-500">
-              Dungeon Floor: {hudInfo.floor} (30x30)
-            </span>
-          </div>
-        </div>
-
-        {/* ACTIVE STATUS EFFECTS ROW */}
-        <div className="mt-3 pt-3 border-t border-zinc-800/60 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-[11px] text-zinc-500 uppercase tracking-wider flex items-center gap-1 font-semibold">
-              <Activity className="w-3 h-3 text-amber-400" /> Condition:
-            </span>
-
-            {statusEffects.length === 0 ? (
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-zinc-950/60 border border-zinc-800 text-[11px] text-zinc-400">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block" />
-                Normal
-              </span>
-            ) : (
-              <div className="flex flex-wrap gap-1.5">
-                {statusEffects.map((effect, idx) => (
-                  <div
-                    key={`${effect.type}-${idx}`}
-                    className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md border text-[11px] font-semibold transition ${getStatusStyle(
-                      effect.type
-                    )}`}
-                    title={`${effect.name}: ${effect.description}`}
-                  >
-                    {getStatusIcon(effect.type)}
-                    <span>{effect.name}</span>
-                    <span className="px-1 py-0.2 rounded bg-black/40 text-[10px] font-mono">
-                      {effect.duration}t
-                    </span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {targetMonsterEffects && targetMonsterEffects.statusEffects.length > 0 && (
-            <div className="flex flex-wrap items-center gap-1.5 bg-red-950/40 border border-red-900/50 px-2.5 py-1 rounded-lg">
-              <span className="text-[10px] text-red-400 font-semibold uppercase flex items-center gap-1">
-                <AlertTriangle className="w-3 h-3 text-red-400" /> {targetMonsterEffects.name}:
-              </span>
-              {targetMonsterEffects.statusEffects.map((eff, i) => (
-                <span
-                  key={i}
-                  className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] border ${getStatusStyle(
-                    eff.type
-                  )}`}
-                  title={`${eff.name}: ${eff.description}`}
-                >
-                  {getStatusIcon(eff.type)}
-                  <span>{eff.name} ({eff.duration}t)</span>
-                </span>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* Equipment Badges: Main-Hand | Off-Hand | Armor */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mt-3 pt-3 border-t border-zinc-800/60 text-xs">
-          <div className="flex items-center gap-2 p-2 rounded-lg bg-zinc-950/40 border border-zinc-800/40">
-            <Sword className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-            <span className="text-zinc-500 shrink-0">Main-Hand:</span>
-            <span className="font-semibold text-zinc-200 truncate">{hudInfo.mainHand}</span>
-          </div>
-
-          <div className="flex items-center gap-2 p-2 rounded-lg bg-zinc-950/40 border border-zinc-800/40">
-            <Shield className="w-3.5 h-3.5 text-sky-400 shrink-0" />
-            <span className="text-zinc-500 shrink-0">Off-Hand:</span>
-            <span className="font-semibold text-zinc-200 truncate">{hudInfo.offHand}</span>
-          </div>
-
-          <div className="flex items-center gap-2 p-2 rounded-lg bg-zinc-950/40 border border-zinc-800/40">
+          {/* Armor */}
+          <div className="flex items-center gap-2 p-2 rounded-lg bg-zinc-950/50 border border-zinc-800/50">
             <ShieldCheck className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-            <span className="text-zinc-500 shrink-0">Armor:</span>
-            <span className="font-semibold text-zinc-200 truncate">{hudInfo.armor}</span>
+            <div className="flex flex-col">
+              <span className="text-[10px] text-zinc-500">Equipped Armor:</span>
+              <span className="font-semibold text-zinc-200 truncate">{hud.armor}</span>
+            </div>
           </div>
         </div>
+
+        {/* ACTIVE SPELLS / SKILLS BAR */}
+        <div className="mt-2.5 p-2 rounded-lg bg-zinc-950/60 border border-zinc-800/60 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
+          <div className="flex items-center gap-1.5 text-sky-400 font-semibold shrink-0">
+            <BookOpen className="w-3.5 h-3.5" />
+            <span>Class Spellbook:</span>
+          </div>
+          <div className="text-[11px] text-zinc-300 truncate">
+            {hud.activeSpells}
+          </div>
+        </div>
+
+        {/* INVENTORY QUICK COUNTS: Potions | Torches | Keys | Gold */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-2.5 text-xs">
+          <div className="flex items-center gap-1.5 p-2 rounded-lg bg-zinc-950/40 border border-zinc-800/40">
+            <Heart className="w-3.5 h-3.5 text-red-400" />
+            <span className="text-zinc-400">Potions:</span>
+            <span className="font-bold text-red-300">{hud.potionsCount}</span>
+          </div>
+
+          <div className="flex items-center gap-1.5 p-2 rounded-lg bg-zinc-950/40 border border-zinc-800/40">
+            <Flame className="w-3.5 h-3.5 text-amber-400" />
+            <span className="text-zinc-400">Torches:</span>
+            <span className="font-bold text-amber-300">{hud.torchesCount}</span>
+          </div>
+
+          <div className="flex items-center gap-1.5 p-2 rounded-lg bg-zinc-950/40 border border-zinc-800/40">
+            <Key className="w-3.5 h-3.5 text-yellow-300" />
+            <span className="text-zinc-400">Keys:</span>
+            <span className="font-bold text-yellow-300">{hud.keysCount}</span>
+          </div>
+
+          <div className="flex items-center gap-1.5 p-2 rounded-lg bg-zinc-950/40 border border-zinc-800/40">
+            <Coins className="w-3.5 h-3.5 text-yellow-400" />
+            <span className="text-zinc-400">Gold:</span>
+            <span className="font-bold text-yellow-400">{hud.gold}g</span>
+          </div>
+        </div>
+
+        {/* ACTIVE STATUS EFFECTS & TARGET CONDITIONS */}
+        {statusEffects.length > 0 && (
+          <div className="mt-2.5 pt-2 border-t border-zinc-800/60 flex flex-wrap items-center gap-2">
+            <span className="text-[10px] text-zinc-500 uppercase tracking-wider font-semibold">
+              Conditions:
+            </span>
+            {statusEffects.map((effect, idx) => (
+              <div
+                key={`${effect.type}-${idx}`}
+                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] border ${getStatusStyle(
+                  effect.type
+                )}`}
+                title={`${effect.name}: ${effect.description}`}
+              >
+                {getStatusIcon(effect.type)}
+                <span>{effect.name} ({effect.duration}t)</span>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
-      {/* 3. VIEWPORT DESCRIPTION CARD */}
+      {/* 3. VIEWPORT LOG & COMBAT TEXT CARD */}
       <div className="rounded-xl border border-zinc-800 bg-zinc-900/80 p-4 shadow-xl backdrop-blur-md">
         <div className="flex items-center gap-2 pb-2 mb-2 border-b border-zinc-800/80 text-xs font-semibold uppercase tracking-wider text-amber-400">
           <Eye className="w-4 h-4 text-amber-400" />
-          <span>3. VIEWPORT DESCRIPTION</span>
+          <span>3. VIEWPORT LOG & COMBAT TEXT</span>
         </div>
 
         <p className="text-xs sm:text-sm text-zinc-300 leading-relaxed font-mono italic bg-zinc-950/50 p-3 rounded-lg border border-zinc-800/50">
           "{viewportDescription}"
         </p>
+
+        {currentTurn.combatLog && currentTurn.combatLog.length > 0 && (
+          <div className="mt-2.5 p-2.5 rounded-lg bg-red-950/20 border border-red-900/40 text-xs flex flex-col gap-1">
+            <span className="text-[10px] font-bold text-red-400 uppercase tracking-wider">
+              Encounter Action Outcome:
+            </span>
+            {currentTurn.combatLog.map((line, idx) => (
+              <div key={idx} className="text-zinc-300 flex items-center gap-1.5">
+                <span className="text-red-400 font-bold">•</span>
+                <span>{line}</span>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

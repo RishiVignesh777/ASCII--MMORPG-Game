@@ -8,13 +8,18 @@ import confetti from 'canvas-confetti';
 import {
   CRTColorTheme,
   Monster,
+  PlayerClass,
 } from './types';
 import {
   GameState,
-  castSpell,
+  buyShopItem,
+  castClassSkill,
   createInitialGame,
   handlePlayerAction,
-  useItem,
+  lightTorch,
+  repairWeapon,
+  selectPlayerClass,
+  usePotion,
 } from './engine/gameEngine';
 import { sounds } from './engine/sound';
 import { AsciiScreen } from './components/AsciiScreen';
@@ -22,6 +27,8 @@ import { HudDisplay } from './components/HudDisplay';
 import { ActionControls } from './components/ActionControls';
 import { TurnHistoryView } from './components/TurnHistoryView';
 import { InventoryModal } from './components/InventoryModal';
+import { MerchantModal } from './components/MerchantModal';
+import { ClassSelectionModal } from './components/ClassSelectionModal';
 import {
   RotateCcw,
   Volume2,
@@ -30,6 +37,8 @@ import {
   HelpCircle,
   Skull,
   Trophy,
+  Flame,
+  Store,
 } from 'lucide-react';
 
 export default function App() {
@@ -38,6 +47,14 @@ export default function App() {
   const [scanlines, setScanlines] = useState(true);
   const [isMuted, setIsMuted] = useState(false);
   const [isInventoryOpen, setIsInventoryOpen] = useState(false);
+  const [isMerchantOpen, setIsMerchantOpen] = useState(false);
+
+  // Synchronize internal merchant state
+  useEffect(() => {
+    if (gameState.isMerchantOpen) {
+      setIsMerchantOpen(true);
+    }
+  }, [gameState.isMerchantOpen]);
 
   // Victory Confetti
   useEffect(() => {
@@ -54,12 +71,28 @@ export default function App() {
     setGameState((prev: GameState) => handlePlayerAction(prev, actionIndex));
   };
 
-  const handleCastSpell = (spellType: 'firebolt' | 'heal' | 'haste' | 'weaken') => {
-    setGameState((prev: GameState) => castSpell(prev, spellType));
+  const handleSelectClass = (chosenClass: PlayerClass) => {
+    setGameState((prev: GameState) => selectPlayerClass(prev, chosenClass));
   };
 
-  const handleUseItem = (itemId: string) => {
-    setGameState((prev: GameState) => useItem(prev, itemId));
+  const handleCastSkill = (skillId: string) => {
+    setGameState((prev: GameState) => castClassSkill(prev, skillId));
+  };
+
+  const handleLightTorch = () => {
+    setGameState((prev: GameState) => lightTorch(prev));
+  };
+
+  const handleRepairWeapon = () => {
+    setGameState((prev: GameState) => repairWeapon(prev));
+  };
+
+  const handleUsePotion = () => {
+    setGameState((prev: GameState) => usePotion(prev));
+  };
+
+  const handleBuyShopItem = (itemType: 'potion' | 'torch' | 'repair' | 'sword') => {
+    setGameState((prev: GameState) => buyShopItem(prev, itemType));
   };
 
   const handleToggleMute = () => {
@@ -69,44 +102,108 @@ export default function App() {
 
   const handleRestart = () => {
     setGameState(createInitialGame());
+    setIsMerchantOpen(false);
   };
 
   // Command prompt interpreter from terminal chat input
   const handleCommandSubmit = (rawCmd: string) => {
     const cmd = rawCmd.toLowerCase().trim();
 
-    if (cmd === '1' || cmd === 'w' || cmd.startsWith('forward') || cmd === 'move forward' || cmd === 'step' || cmd === 'step forward') {
+    // Turn 1 Class Selection commands:
+    if (!gameState.player.classChosen) {
+      if (cmd === '1' || cmd.includes('fighter')) {
+        handleSelectClass('Fighter');
+        return;
+      }
+      if (cmd === '2' || cmd.includes('mage')) {
+        handleSelectClass('Mage');
+        return;
+      }
+      if (cmd === '3' || cmd.includes('rogue')) {
+        handleSelectClass('Rogue');
+        return;
+      }
+    }
+
+    if (
+      cmd === '1' ||
+      cmd === 'w' ||
+      cmd.startsWith('forward') ||
+      cmd === 'move forward' ||
+      cmd === 'step' ||
+      cmd === 'step forward'
+    ) {
       handleAction(1);
-    } else if (cmd === '2' || cmd === 'a' || cmd.includes('left') || cmd === 'turn left') {
+    } else if (
+      cmd === '2' ||
+      cmd === 'a' ||
+      cmd.includes('left') ||
+      cmd === 'turn left' ||
+      cmd === 'turn'
+    ) {
       handleAction(2);
-    } else if (cmd === '3' || cmd === 'd' || cmd.includes('right') || cmd === 'turn right') {
+    } else if (
+      cmd === '3' ||
+      cmd === ' ' ||
+      cmd.startsWith('attack') ||
+      cmd.startsWith('strike') ||
+      cmd === 'melee'
+    ) {
       handleAction(3);
-    } else if (cmd === '4' || cmd === 's' || cmd.includes('back') || cmd === '180' || cmd === 'step back') {
-      handleAction(4);
-    } else if (cmd === '5' || cmd === 'c' || cmd.startsWith('strafe')) {
+    } else if (
+      cmd === '4' ||
+      cmd === 'f' ||
+      cmd.startsWith('cast') ||
+      cmd.startsWith('spell') ||
+      cmd.startsWith('skill')
+    ) {
+      if (gameState.player.skills[0]) {
+        handleCastSkill(gameState.player.skills[0].id);
+      } else {
+        handleAction(4);
+      }
+    } else if (cmd.includes('fireball') || cmd.includes('fire')) {
+      handleCastSkill('fireball');
+    } else if (cmd.includes('frost') || cmd.includes('ice')) {
+      handleCastSkill('frost_nova');
+    } else if (cmd.includes('power') || cmd.includes('power strike')) {
+      handleCastSkill('power_strike');
+    } else if (cmd.includes('shield bash') || cmd.includes('bash')) {
+      handleCastSkill('shield_bash');
+    } else if (cmd.includes('backstab') || cmd.includes('shadow')) {
+      handleCastSkill('shadow_backstab');
+    } else if (cmd.includes('poison') || cmd.includes('poison blade')) {
+      handleCastSkill('poison_blade');
+    } else if (cmd.includes('barrier') || cmd.includes('shield')) {
+      handleCastSkill('arcane_barrier');
+    } else if (cmd.includes('heal')) {
+      handleCastSkill('lesser_heal');
+    } else if (cmd === 't' || cmd.includes('torch') || cmd.includes('light torch')) {
+      handleLightTorch();
+    } else if (cmd === 'p' || cmd.includes('potion') || cmd.includes('drink')) {
+      handleUsePotion();
+    } else if (cmd.includes('repair') || cmd.includes('whetstone') || cmd.includes('fix')) {
+      handleRepairWeapon();
+    } else if (
+      cmd === '5' ||
+      cmd === 'r' ||
+      cmd.startsWith('item') ||
+      cmd.startsWith('use')
+    ) {
       handleAction(5);
     } else if (
       cmd === '6' ||
       cmd === 'e' ||
       cmd.startsWith('interact') ||
       cmd.startsWith('open') ||
-      cmd.startsWith('attack') ||
       cmd.startsWith('search') ||
-      cmd.startsWith('drink') ||
-      cmd.startsWith('descend')
+      cmd.startsWith('inspect') ||
+      cmd.startsWith('shop') ||
+      cmd.startsWith('merchant')
     ) {
       handleAction(6);
-    } else if (cmd.includes('fire') || cmd === 'q') {
-      handleCastSpell('firebolt');
-    } else if (cmd.includes('heal') || cmd === 'h') {
-      handleCastSpell('heal');
-    } else if (cmd.includes('haste') || cmd === 'z') {
-      handleCastSpell('haste');
-    } else if (cmd.includes('weaken') || cmd.includes('curse') || cmd === 'x') {
-      handleCastSpell('weaken');
-    } else if (cmd.includes('potion') || cmd.includes('drink potion')) {
-      const pot = gameState.player.inventory.find((item) => item.type === 'potion');
-      if (pot) handleUseItem(pot.id);
+    } else if (cmd === 'shop' || cmd === 'merchant') {
+      setIsMerchantOpen(true);
     } else if (cmd === 'inventory' || cmd === 'bag' || cmd === 'i') {
       setIsInventoryOpen(true);
     } else if (cmd === 'restart') {
@@ -121,7 +218,6 @@ export default function App() {
     }
   };
 
-  // Check if monster in front
   const { currentTurn, player, dungeonMap } = gameState;
   const { dx, dy } = [
     { dx: 0, dy: -1 },
@@ -129,6 +225,7 @@ export default function App() {
     { dx: 0, dy: 1 },
     { dx: -1, dy: 0 },
   ][player.facing];
+
   const monsterInFront: Monster | null =
     dungeonMap.monsters.find(
       (m: Monster) => m.x === player.x + dx && m.y === player.y + dy && m.hp > 0
@@ -145,19 +242,29 @@ export default function App() {
             </div>
             <div>
               <h1 className="text-sm sm:text-base font-extrabold tracking-wider text-zinc-100 flex items-center gap-2">
-                <span>3D ASCII DUNGEON ENGINE</span>
+                <span>3D ASCII RPG ENGINE</span>
                 <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-amber-500/10 border border-amber-500/30 text-amber-300">
-                  WIDESCREEN 30x12
+                  CLASS & SPELL FX
                 </span>
               </h1>
               <p className="text-[11px] text-zinc-400">
-                Widescreen FOV • 11x11 Radar • 30x30 Dungeon Scale • Real-Time Depth Shading
+                Fighter/Mage/Rogue • Dynamic Torch Lighting • Spell FX • Equipment Durability
               </p>
             </div>
           </div>
 
           {/* CRT Theme & Controls Bar */}
           <div className="flex flex-wrap items-center gap-2 text-xs">
+            {/* Quick Torch Trigger */}
+            <button
+              onClick={handleLightTorch}
+              className="flex items-center gap-1 px-2 py-1 rounded bg-amber-950/60 border border-amber-600/50 text-amber-300 hover:bg-amber-900/80 transition cursor-pointer text-[11px]"
+              title="Light a fresh torch (T)"
+            >
+              <Flame className="w-3.5 h-3.5 text-amber-400" />
+              <span>Torch [{player.torchFuel}/5]</span>
+            </button>
+
             {/* Color Palette Switcher */}
             <div className="flex items-center bg-zinc-950/80 p-1 rounded-lg border border-zinc-800">
               <span className="text-[10px] text-zinc-500 px-1.5 hidden md:inline">Phosphor:</span>
@@ -222,14 +329,14 @@ export default function App() {
               }`}
               title="Toggle Audio Effects (M)"
             >
-              {isMuted ? <VolumeX className="w-3.5 h-3.5" /> : <Volume2 className="w-3.5 h-3.5" />}
+              {isMuted ? <VolumeX className="w-3.5 h-3.5" /> : <Volume2 className="w-3.5 h-3.5 text-amber-400" />}
             </button>
 
             {/* Codex & Guide */}
             <button
               onClick={() => setIsInventoryOpen(true)}
               className="p-1.5 rounded-lg border border-zinc-800 bg-zinc-950 text-zinc-300 hover:text-white hover:border-zinc-700 transition cursor-pointer"
-              title="Guide & Backpack"
+              title="Backpack & Spellbook (I)"
             >
               <HelpCircle className="w-3.5 h-3.5" />
             </button>
@@ -246,6 +353,11 @@ export default function App() {
           </div>
         </header>
 
+        {/* TURN 1 CLASS SELECTION PROMPT */}
+        {!player.classChosen && (
+          <ClassSelectionModal onSelectClass={handleSelectClass} />
+        )}
+
         {/* VICTORY BANNER */}
         {gameState.isVictory && (
           <div className="p-4 rounded-xl border border-yellow-500/60 bg-gradient-to-r from-yellow-950/70 via-amber-900/60 to-yellow-950/70 shadow-2xl flex items-center justify-between gap-4">
@@ -255,10 +367,10 @@ export default function App() {
               </div>
               <div>
                 <h2 className="text-sm font-bold text-yellow-200 uppercase tracking-wide">
-                  Victory! The Abyssal Vault Conquered!
+                  Victory! The Minotaur Dreadlord Slain!
                 </h2>
                 <p className="text-xs text-yellow-300/80">
-                  You vanquished the Minotaur Dreadlord and retrieved the Ancient Relic of Power.
+                  You conquered the 30x30 Abyssal Vault and recovered the legendary Ancient Relic!
                 </p>
               </div>
             </div>
@@ -281,10 +393,10 @@ export default function App() {
               </div>
               <div>
                 <h2 className="text-sm font-bold text-red-300 uppercase tracking-wide">
-                  Your Soul Has Perished in Floor {gameState.currentFloor}
+                  Your Journey Has Ended on Floor {gameState.currentFloor}
                 </h2>
                 <p className="text-xs text-red-400/80">
-                  The cold dungeon stones claim another wandering adventurer.
+                  The dark corridors claim your bones. Light a torch and rise once more.
                 </p>
               </div>
             </div>
@@ -298,7 +410,7 @@ export default function App() {
           </div>
         )}
 
-        {/* 1. 3D FIRST-PERSON VIEWPORT & MINI-MAP */}
+        {/* 1. WIDESCREEN 3D VIEWPORT & MINI-MAP */}
         <AsciiScreen
           currentTurn={currentTurn}
           theme={crtTheme}
@@ -308,21 +420,20 @@ export default function App() {
           floatingText={gameState.floatingText}
         />
 
-        {/* 2. COMPASS & HUD + 3. VIEWPORT DESCRIPTION */}
-        <HudDisplay
-          currentTurn={currentTurn}
-          xp={player.xp}
-          nextXp={player.nextXp}
-          level={player.level}
-          gold={player.gold}
-        />
+        {/* 2. EXTENDED HUD & CLASS SPELLBOOK + 3. VIEWPORT LOG & COMBAT TEXT */}
+        <HudDisplay currentTurn={currentTurn} />
 
-        {/* 4. FIRST-PERSON ACTIONS */}
+        {/* 4. EXPANDED ACTION MENU */}
         <ActionControls
           currentTurn={currentTurn}
+          skills={player.skills || []}
           onAction={handleAction}
-          onCastSpell={handleCastSpell}
+          onCastSkill={handleCastSkill}
+          onLightTorch={handleLightTorch}
+          onRepairWeapon={handleRepairWeapon}
+          onUsePotion={handleUsePotion}
           onOpenInventory={() => setIsInventoryOpen(true)}
+          onOpenMerchant={() => setIsMerchantOpen(true)}
           isMuted={isMuted}
           onToggleMute={handleToggleMute}
           isGameOver={gameState.isGameOver}
@@ -336,12 +447,26 @@ export default function App() {
         />
       </div>
 
-      {/* Backpack & Guide Modal */}
+      {/* Backpack & Equipment Modal */}
       {isInventoryOpen && (
         <InventoryModal
           player={player}
           onClose={() => setIsInventoryOpen(false)}
-          onUseItem={handleUseItem}
+          onUseItem={(itemId) => {
+            const item = player.inventory.find((i) => i.id === itemId);
+            if (item?.type === 'torch') handleLightTorch();
+            else if (item?.type === 'repair_kit') handleRepairWeapon();
+            else handleUsePotion();
+          }}
+        />
+      )}
+
+      {/* Subterranean Merchant Trading Modal */}
+      {isMerchantOpen && (
+        <MerchantModal
+          player={player}
+          onClose={() => setIsMerchantOpen(false)}
+          onBuyItem={handleBuyShopItem}
         />
       )}
     </div>

@@ -1,5 +1,15 @@
 import React, { useState } from 'react';
-import { Copy, Check, Terminal, Sparkles, ShieldAlert, Eye, Flame } from 'lucide-react';
+import {
+  Copy,
+  Check,
+  Terminal,
+  Sparkles,
+  ShieldAlert,
+  Eye,
+  Flame,
+  Swords,
+  Snowflake,
+} from 'lucide-react';
 import { CRTColorTheme, Monster, TurnLog } from '../types';
 import { formatTurnResponse } from '../engine/gameEngine';
 
@@ -58,7 +68,6 @@ export const AsciiScreen: React.FC<AsciiScreenProps> = ({
     },
   };
 
-  // Depth-graded contrast styling based on FOV distance
   const getFovCharStyle = (depth: number, theme: CRTColorTheme) => {
     if (!fovDimmingEnabled) return '';
 
@@ -102,7 +111,6 @@ export const AsciiScreen: React.FC<AsciiScreenProps> = ({
           return 'text-cyan-500/80 font-medium opacity-75';
       }
     } else {
-      // Monochrome
       switch (depth) {
         case 1:
           return 'text-white font-extrabold opacity-100 drop-shadow-[0_0_8px_rgba(255,255,255,0.9)]';
@@ -119,8 +127,10 @@ export const AsciiScreen: React.FC<AsciiScreenProps> = ({
   };
 
   const currentThemeStyle = themeClasses[theme];
+  const hud = currentTurn.extendedHud;
+  const activeFx = currentTurn.activeVisualFx;
 
-  // Side-by-side combined text lines (12 rows for 30x12 widescreen)
+  // Combine lines for 12 rows
   const combinedLines: string[] = [];
   const maxRows = Math.max(currentTurn.viewportAscii.length, currentTurn.miniMapAscii.length, 12);
   for (let i = 0; i < maxRows; i++) {
@@ -135,21 +145,50 @@ export const AsciiScreen: React.FC<AsciiScreenProps> = ({
       <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-2 bg-zinc-950/80 border-b border-zinc-800 text-xs text-zinc-400">
         <div className="flex items-center gap-2">
           <Terminal className="w-3.5 h-3.5 text-amber-400" />
-          <span className="font-semibold text-zinc-200">1. WIDESCREEN 3D VIEWPORT & EXPANDED MINI-MAP</span>
+          <span className="font-semibold text-zinc-200">1. WIDESCREEN 3D VIEWPORT & MINI-MAP</span>
           <span className="px-1.5 py-0.5 rounded bg-zinc-800/80 text-[10px] text-zinc-400">
             TURN {currentTurn.turn}
+          </span>
+
+          {/* Torch status badge */}
+          <span
+            className={`flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-semibold ${
+              hud.torchFuel === 0
+                ? 'bg-zinc-800 text-zinc-400 border border-zinc-700'
+                : hud.torchFuel <= 2
+                ? 'bg-amber-950/80 text-amber-300 border border-amber-800/60'
+                : 'bg-amber-500/20 text-amber-400 border border-amber-500/40'
+            }`}
+          >
+            <Flame
+              className={`w-3 h-3 ${
+                hud.torchFuel === 0
+                  ? 'text-zinc-600'
+                  : hud.torchFuel <= 2
+                  ? 'text-amber-400 animate-pulse'
+                  : 'text-amber-400'
+              }`}
+            />
+            <span>Torch: {hud.torchFuel}/5 Fuel</span>
           </span>
         </div>
 
         <div className="flex items-center gap-2">
           {monsterInFront && (
-            <span className="flex items-center gap-1 text-[11px] font-bold text-red-400 animate-pulse bg-red-950/60 px-2 py-0.5 rounded border border-red-800/50">
+            <span
+              className={`flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded border ${
+                monsterInFront.isBoss
+                  ? 'bg-red-950 text-red-300 border-red-600 animate-pulse'
+                  : 'text-red-400 bg-red-950/60 border-red-800/50'
+              }`}
+            >
               <ShieldAlert className="w-3 h-3" />
-              HOSTILE: {monsterInFront.name} ({monsterInFront.hp}/{monsterInFront.maxHp} HP)
+              {monsterInFront.isBoss ? 'BOSS: ' : 'HOSTILE: '} {monsterInFront.name} (
+              {monsterInFront.hp}/{monsterInFront.maxHp} HP)
             </span>
           )}
 
-          {/* Interactive FOV Torchlight Dimming Toggle */}
+          {/* FOV Toggle */}
           <button
             onClick={() => setFovDimmingEnabled(!fovDimmingEnabled)}
             className={`flex items-center gap-1.5 px-2 py-1 rounded text-[11px] transition cursor-pointer border ${
@@ -157,10 +196,10 @@ export const AsciiScreen: React.FC<AsciiScreenProps> = ({
                 ? 'bg-amber-500/10 border-amber-500/40 text-amber-300'
                 : 'bg-zinc-800/60 border-zinc-700/50 text-zinc-400 hover:text-zinc-200'
             }`}
-            title="Toggle Field-of-View (FOV) distance contrast attenuation"
+            title="Toggle Field-of-View dynamic lighting"
           >
-            <Flame className="w-3 h-3 text-amber-400" />
-            <span>FOV Shading: {fovDimmingEnabled ? 'ON' : 'OFF'}</span>
+            <Eye className="w-3 h-3 text-amber-400" />
+            <span>Light Shading: {fovDimmingEnabled ? 'ON' : 'OFF'}</span>
           </button>
 
           <button
@@ -187,6 +226,29 @@ export const AsciiScreen: React.FC<AsciiScreenProps> = ({
       <div
         className={`relative p-4 md:p-6 select-none overflow-x-auto ${currentThemeStyle.bg} ${currentThemeStyle.glow} transition-colors duration-300`}
       >
+        {/* Active Combat / Spell Visual FX Overlay */}
+        {activeFx === 'melee_hit' && (
+          <div className="absolute top-4 right-8 z-20 flex items-center gap-1 px-3 py-1 rounded bg-rose-950/80 border border-rose-500/60 text-rose-300 text-xs shadow-lg animate-pulse">
+            <Swords className="w-3.5 h-3.5" />
+            <span>Slash Hit!</span>
+          </div>
+        )}
+        {activeFx === 'fireball' && (
+          <div className="absolute top-4 right-8 z-20 flex items-center gap-1 px-3 py-1 rounded bg-orange-950/80 border border-orange-500/60 text-orange-300 text-xs shadow-lg animate-bounce">
+            <Flame className="w-3.5 h-3.5" />
+            <span>Fireball Burst!</span>
+          </div>
+        )}
+        {activeFx === 'frost' && (
+          <div className="absolute top-4 right-8 z-20 flex items-center gap-1 px-3 py-1 rounded bg-cyan-950/80 border border-cyan-500/60 text-cyan-300 text-xs shadow-lg animate-pulse">
+            <Snowflake className="w-3.5 h-3.5" />
+            <span>Frost Nova!</span>
+          </div>
+        )}
+        {activeFx === 'damage_taken' && (
+          <div className="absolute inset-0 border-4 border-red-600/70 pointer-events-none animate-pulse z-20" />
+        )}
+
         {/* Flash damage or hit overlay */}
         {flashEffect === 'hit' && (
           <div className="absolute inset-0 bg-amber-400/20 pointer-events-none animate-ping" />
@@ -220,7 +282,7 @@ export const AsciiScreen: React.FC<AsciiScreenProps> = ({
           </div>
         )}
 
-        {/* ASCII Viewport & Mini-map side by side display with FOV Distance Dimming */}
+        {/* ASCII Viewport & Mini-map side by side display */}
         <div className="flex justify-center items-center py-1">
           <pre
             className="text-sm sm:text-base md:text-lg lg:text-xl font-bold tracking-widest leading-tight"
@@ -252,34 +314,37 @@ export const AsciiScreen: React.FC<AsciiScreenProps> = ({
           </pre>
         </div>
 
-        {/* FOV Shading Status Bar & Legend */}
+        {/* Torch & Visibility Indicator Legend */}
         <div className="mt-4 pt-3 border-t border-zinc-800/60 flex flex-wrap items-center justify-between gap-3 text-[11px] text-zinc-400">
-          <div className="flex items-center gap-3">
-            <span className="flex items-center gap-1 text-zinc-400 font-semibold">
-              <Eye className="w-3.5 h-3.5 text-amber-400" /> FOV Contrast Ramp:
+          <div className="flex items-center gap-2">
+            <span className="flex items-center gap-1 font-semibold text-zinc-300">
+              <Flame className="w-3.5 h-3.5 text-amber-400" />
+              Dynamic Lighting:
             </span>
-            <div className="flex items-center gap-2 font-mono">
-              <span className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-zinc-900 border border-zinc-800">
-                <span className="font-extrabold text-amber-300">█ # M</span>
-                <span className="text-[10px] text-zinc-500">Dist 1 (Bright)</span>
-              </span>
-              <span className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-zinc-900 border border-zinc-800">
-                <span className="font-semibold text-amber-400/80">▒ = m</span>
-                <span className="text-[10px] text-zinc-500">Dist 2 (Mid)</span>
-              </span>
-              <span className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-zinc-900 border border-zinc-800">
-                <span className="font-normal text-amber-600/60">░ - ?</span>
-                <span className="text-[10px] text-zinc-500">Dist 3 (Dim)</span>
-              </span>
-              <span className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-zinc-900 border border-zinc-800">
-                <span className="font-light text-amber-800/40">·</span>
-                <span className="text-[10px] text-zinc-500">Dist 4+ (Horizon)</span>
-              </span>
+            <div className="flex items-center gap-1">
+              {[1, 2, 3, 4, 5].map((level) => (
+                <div
+                  key={level}
+                  className={`w-3.5 h-2 rounded-xs ${
+                    level <= hud.torchFuel
+                      ? 'bg-amber-400 shadow-[0_0_6px_rgba(251,191,36,0.8)]'
+                      : 'bg-zinc-800 border border-zinc-700/50'
+                  }`}
+                  title={`Torch Fuel Level ${hud.torchFuel}/5`}
+                />
+              ))}
             </div>
+            <span className="text-[10px] text-zinc-400 ml-1">
+              {hud.torchFuel >= 4
+                ? 'High Torch (Full FOV)'
+                : hud.torchFuel >= 1
+                ? 'Low Torch (Fading)'
+                : 'Pitch Black (Touch Only)'}
+            </span>
           </div>
 
           <div className="text-zinc-500 text-[10px] italic">
-            Torch Radius: 3 Tiles • Dynamic Lighting
+            Sprites: Door [ | + | ] • Chest [ ( $ ) ] • Boss (5x5) • Shop (S)
           </div>
         </div>
       </div>

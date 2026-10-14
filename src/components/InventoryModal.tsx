@@ -1,5 +1,5 @@
 import React from 'react';
-import { X, Sword, Shield, Package, Heart, Zap, Sparkles, BookOpen, Key, Coins } from 'lucide-react';
+import { X, Sword, Shield, Package, Heart, Zap, Sparkles, BookOpen, Key, Coins, Flame, Wrench } from 'lucide-react';
 import { Item, Player } from '../types';
 
 interface InventoryModalProps {
@@ -67,8 +67,10 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({
               {/* Stats Overview */}
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 p-3 rounded-lg bg-zinc-950/70 border border-zinc-800">
                 <div>
-                  <span className="text-[10px] text-zinc-500 uppercase">Level</span>
-                  <div className="font-bold text-amber-300 text-sm">Lvl {player.level}</div>
+                  <span className="text-[10px] text-zinc-500 uppercase">Class & Level</span>
+                  <div className="font-bold text-amber-300 text-sm">
+                    {player.characterClass} {player.level}
+                  </div>
                 </div>
                 <div>
                   <span className="text-[10px] text-zinc-500 uppercase">Gold</span>
@@ -77,15 +79,15 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({
                   </div>
                 </div>
                 <div>
-                  <span className="text-[10px] text-zinc-500 uppercase">Attack</span>
-                  <div className="font-bold text-rose-300 text-sm">
-                    {player.baseAttack + (player.weapon.bonusAtk || 0)} ATK
+                  <span className="text-[10px] text-zinc-500 uppercase">Torch Fuel</span>
+                  <div className="font-bold text-amber-400 text-sm flex items-center gap-1">
+                    <Flame className="w-3 h-3" /> {player.torchFuel}/5
                   </div>
                 </div>
                 <div>
-                  <span className="text-[10px] text-zinc-500 uppercase">Defense</span>
-                  <div className="font-bold text-sky-300 text-sm">
-                    {player.baseDefense + (player.shieldArmor.bonusDef || 0)} DEF
+                  <span className="text-[10px] text-zinc-500 uppercase">Weapon Dura</span>
+                  <div className="font-bold text-sky-300 text-sm flex items-center gap-1">
+                    <Wrench className="w-3 h-3" /> {player.weaponDurability}/{player.maxWeaponDurability}
                   </div>
                 </div>
               </div>
@@ -103,7 +105,9 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({
                       </div>
                       <div>
                         <div className="font-bold text-zinc-200">{player.weapon.name}</div>
-                        <div className="text-[11px] text-zinc-500">{player.weapon.description}</div>
+                        <div className="text-[11px] text-zinc-500">
+                          {player.weapon.description} • Durability: {player.weaponDurability}/{player.maxWeaponDurability}
+                        </div>
                       </div>
                     </div>
                     <span className="px-2 py-0.5 rounded bg-amber-500/10 border border-amber-500/30 text-amber-300 font-bold text-[11px]">
@@ -146,7 +150,12 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({
                         className="p-2.5 rounded-lg bg-zinc-950/60 border border-zinc-800 flex items-center justify-between gap-3"
                       >
                         <div className="flex-1">
-                          <div className="font-bold text-zinc-200">{item.name}</div>
+                          <div className="font-bold text-zinc-200 flex items-center gap-1.5">
+                            {item.type === 'potion' && <Heart className="w-3.5 h-3.5 text-red-400" />}
+                            {item.type === 'torch' && <Flame className="w-3.5 h-3.5 text-amber-400" />}
+                            {item.type === 'repair_kit' && <Wrench className="w-3.5 h-3.5 text-sky-400" />}
+                            <span>{item.name}</span>
+                          </div>
                           <div className="text-[11px] text-zinc-500">{item.description}</div>
                         </div>
 
@@ -157,8 +166,22 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({
                           >
                             Drink
                           </button>
+                        ) : item.type === 'torch' ? (
+                          <button
+                            onClick={() => onUseItem(item.id)}
+                            className="px-3 py-1 rounded bg-amber-600 hover:bg-amber-500 text-white font-semibold text-xs cursor-pointer transition shadow"
+                          >
+                            Ignite
+                          </button>
+                        ) : item.type === 'repair_kit' ? (
+                          <button
+                            onClick={() => onUseItem(item.id)}
+                            className="px-3 py-1 rounded bg-sky-600 hover:bg-sky-500 text-white font-semibold text-xs cursor-pointer transition shadow"
+                          >
+                            Repair
+                          </button>
                         ) : (
-                          <span className="text-[10px] text-zinc-500 italic">Inventory</span>
+                          <span className="text-[10px] text-zinc-500 italic">Item</span>
                         )}
                       </div>
                     ))}
@@ -171,85 +194,44 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({
             <div className="space-y-3">
               <div className="p-3 rounded-lg bg-zinc-950/70 border border-zinc-800 space-y-2">
                 <h4 className="font-bold text-amber-300 flex items-center gap-1.5">
-                  <BookOpen className="w-3.5 h-3.5" /> 3D Depth Shading & FOV Contrast Ramp
+                  <BookOpen className="w-3.5 h-3.5" /> 3D Depth Shading & Dynamic Lighting
                 </h4>
                 <ul className="space-y-1 text-zinc-400 text-[11px]">
                   <li>
-                    <code className="text-amber-400 font-bold">█ / #</code> : Close Wall (Distance 1 - High Contrast, 100% Torchlight)
+                    <code className="text-amber-400 font-bold">Torch 4-5 (High):</code> Full 30x12 view visible with far-depth shading (░).
                   </li>
                   <li>
-                    <code className="text-amber-400 font-bold">▒ / =</code> : Mid Wall (Distance 2 - Medium Contrast, 75% Torchlight)
+                    <code className="text-amber-400 font-bold">Torch 1-2 (Low):</code> Reduced field of view; distant tiles fade into darkness.
                   </li>
                   <li>
-                    <code className="text-amber-400 font-bold">░ / -</code> : Far Wall (Distance 3 - Low Contrast, 45% Dim Ambient)
+                    <code className="text-amber-400 font-bold">Torch 0 (Out):</code> Pitch black frame except for adjacent tiles (█).
                   </li>
                   <li>
-                    <code className="text-amber-400 font-bold">· / :</code> : Distant Horizon / Floor Gridlines (Distance 4+, 25% Faint)
+                    <code className="text-amber-400 font-bold">[ | + | ]</code> : Reinforced heavy wooden door sprite
                   </li>
                   <li>
-                    <code className="text-amber-400 font-bold">{'[ \\M/ ] / [ {m} ] / [ ·m· ]'}</code> : Hostiles scaled and dimmed across Distances 1, 2, 3
+                    <code className="text-amber-400 font-bold">[ ( $ ) ]</code> : Detailed iron-banded treasure chest sprite
                   </li>
                   <li>
-                    <code className="text-amber-400 font-bold"># / = / - / ·</code> : Mini-Map FOV lighting attenuation from torch center
+                    <code className="text-amber-400 font-bold">Boss Monster:</code> Detailed 5x5 multi-line beast sprite
+                  </li>
+                  <li>
+                    <code className="text-amber-400 font-bold">Shopkeeper (S):</code> Safe room trading post to buy potions, torches, repairs
                   </li>
                 </ul>
               </div>
 
               <div className="p-3 rounded-lg bg-zinc-950/70 border border-zinc-800 space-y-2">
-                <h4 className="font-bold text-amber-300">Overhead Mini-Map Symbols</h4>
-                <ul className="space-y-1 text-zinc-400 text-[11px]">
-                  <li>
-                    <code className="text-emerald-400 font-bold">@^, @&gt;, @v, @&lt;</code> : Player position & facing direction
-                  </li>
-                  <li>
-                    <code className="text-zinc-300 font-bold">#</code> : Solid stone wall
-                  </li>
-                  <li>
-                    <code className="text-zinc-500 font-bold">.</code> : Walkable stone floor
-                  </li>
-                  <li>
-                    <code className="text-amber-400 font-bold">+</code> : Closed wooden door (Action 5 opens it)
-                  </li>
-                  <li>
-                    <code className="text-amber-300 font-bold">/</code> : Open door threshold
-                  </li>
-                  <li>
-                    <code className="text-yellow-400 font-bold">$</code> : Treasure chest
-                  </li>
-                  <li>
-                    <code className="text-sky-400 font-bold">~</code> : Fountain of Restoration
-                  </li>
-                  <li>
-                    <code className="text-indigo-400 font-bold">&gt;</code> : Spiral stone staircase down
-                  </li>
-                  <li>
-                    <code className="text-rose-400 font-bold">g, S, M, B</code> : Hostile dungeon monsters
-                  </li>
-                </ul>
-              </div>
-
-              <div className="p-3 rounded-lg bg-zinc-950/70 border border-zinc-800 space-y-2">
-                <h4 className="font-bold text-amber-300">Combat Status Effects System</h4>
+                <h4 className="font-bold text-amber-300">Class Disciplines & Spellbook</h4>
                 <ul className="space-y-1.5 text-zinc-400 text-[11px]">
-                  <li className="flex items-start gap-1.5">
-                    <span className="text-emerald-400 font-bold">☠ Poisoned:</span>
-                    <span>Inflicted by Goblins. Takes 2 damage at the end of each turn. Cured by Antidote or Fountains.</span>
+                  <li>
+                    <strong className="text-amber-300">Fighter:</strong> High HP/Heavy armor. Power Strike, Shield Bash, Battle Cry.
                   </li>
-                  <li className="flex items-start gap-1.5">
-                    <span className="text-purple-400 font-bold">⚔ Weakened:</span>
-                    <span>Inflicted by Skeletons & Necromancers. Reduces physical attack power (-2 ATK).</span>
+                  <li>
+                    <strong className="text-blue-300">Mage:</strong> High MP/Offensive spells. Fireball, Frost Nova, Arcane Barrier, Heal.
                   </li>
-                  <li className="flex items-start gap-1.5">
-                    <span className="text-amber-300 font-bold">⚡ Hasted:</span>
-                    <span>Granted by Haste Surge or Potion of Haste. Adds +3 ATK and increases critical strike chance to 45%.</span>
-                  </li>
-                  <li className="flex items-start gap-1.5">
-                    <span className="text-orange-400 font-bold">🔥 Burned:</span>
-                    <span>Inflicted on monsters via Firebolt. Clinging fire deals 3 damage per turn.</span>
-                  </li>
-                  <li className="flex items-start gap-1.5">
-                    <span className="text-sky-300 font-bold">🛡️ Shielded:</span>
-                    <span>Grants +3 Defense against hostile counter-attacks.</span>
+                  <li>
+                    <strong className="text-emerald-300">Rogue:</strong> High speed/Critical strikes. Shadow Backstab, Poison Blade, Haste Surge.
                   </li>
                 </ul>
               </div>
